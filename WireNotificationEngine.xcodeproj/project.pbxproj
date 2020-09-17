@@ -783,7 +783,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 06BD1D322487B01C002F82A6 /* ios-test-target.xcconfig */;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -808,7 +807,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 06BD1D322487B01C002F82A6 /* ios-test-target.xcconfig */;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
