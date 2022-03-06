@@ -20,6 +20,7 @@ import WireRequestStrategy
 
 public protocol NotificationSessionDelegate: class {
     func modifyNotification(_ alert: ClientNotification, messageCount: Int)
+    func processCallEvents(_ events: [ZMUpdateEvent])
 }
 
 public struct ClientNotification {
@@ -146,14 +147,34 @@ extension PushNotificationStrategy: UpdateEventProcessor {
 
     public func storeUpdateEvents(_ updateEvents: [ZMUpdateEvent], ignoreBuffer: Bool) {
         eventDecoder.decryptAndStoreEvents(updateEvents) { decryptedUpdateEvents in
-            let notifications = self.convertToLocalNotifications(decryptedUpdateEvents, moc: self.moc)
-            self.localNotifications.append(contentsOf: notifications)
+            self.processEventsWhileInBackground(decryptedUpdateEvents)
         }
     }
     
     public func storeAndProcessUpdateEvents(_ updateEvents: [ZMUpdateEvent], ignoreBuffer: Bool) {
         // Events will be processed in the foreground
     }
+
+    private func processEventsWhileInBackground(_ updateEvents: [ZMUpdateEvent]) {
+        let callEvents = updateEvents.filter({ event in
+            if event.type == .conversationOtrMessageAdd,
+               let genericMessage = GenericMessage(from: event), genericMessage.hasCalling {
+                return true
+            } else {
+                return false
+            }
+        })
+        if !callEvents.isEmpty {
+            delegate?.processCallEvents(callEvents)
+        }
+
+        let nonCallEvents = updateEvents.filter { !callEvents.contains($0) }
+        if !nonCallEvents.isEmpty {
+            let notifications = convertToLocalNotifications(nonCallEvents, moc: self.moc)
+            localNotifications.append(contentsOf: notifications)
+        }
+    }
+
 }
 
 // MARK: - Converting events to localNotifications
