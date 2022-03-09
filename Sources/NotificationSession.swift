@@ -169,7 +169,11 @@ public class NotificationSession {
        
         let sharedContainerURL = FileManager.sharedContainerDirectory(for: applicationGroupIdentifier)
 
-        let account = Account(userName: "", userIdentifier: accountIdentifier)
+        let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
+        guard let account = accountManager.account(with: accountIdentifier) else {
+            preconditionFailure("Unable to get account")
+        }
+
         let coreDataStack = CoreDataStack(account: account,
                                           applicationContainer: sharedContainerURL)
 
