@@ -181,6 +181,10 @@ public class NotificationSession {
         let coreDataStack = CoreDataStack(account: account,
                                           applicationContainer: sharedContainerURL)
 
+        coreDataStack.loadStores { error in
+            // TODO jacob error handling
+        }
+
         let cookieStorage = ZMPersistentCookieStorage(forServerName: environment.backendURL.host!, userIdentifier: accountIdentifier)
         let reachabilityGroup = ZMSDispatchGroup(dispatchGroup: DispatchGroup(), label: "Sharing session reachability")!
         let serverNames = [environment.backendURL, environment.backendWSURL].compactMap { $0.host }
@@ -325,12 +329,4 @@ public class NotificationSession {
         case data = "data"
         case identifier = "id"
     }
-}
-
-// MARK: - Helpers
-
-/// Errors
-
-enum UserProfileUpdateError: Int, Error {
-    case noAccount
 }
