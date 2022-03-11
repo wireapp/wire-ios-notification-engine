@@ -140,6 +140,12 @@ class ApplicationStatusDirectory : ApplicationStatus {
 /// for the entire lifetime.
 public class NotificationSession {
 
+    /// The failure reason of a `NotificationSession` initialization
+    /// - noAccount: Account doesn't exist
+    public enum InitializationError: Error {
+        case noAccount
+    }
+
     /// Directory of all application statuses
     private let applicationStatusDirectory : ApplicationStatusDirectory
 
@@ -155,9 +161,7 @@ public class NotificationSession {
         
     /// Initializes a new `SessionDirectory` to be used in an extension environment
     /// - parameter databaseDirectory: The `NSURL` of the shared group container
-    /// - throws: `InitializationError.NeedsMigration` in case the local store needs to be
-    /// migrated, which is currently only supported in the main application or `InitializationError.LoggedOut` if
-    /// no user is currently logged in.
+    /// - throws: `InitializationError.noAccount` in case the account does not exist
     /// - returns: The initialized session object if no error is thrown
     
     public convenience init(applicationGroupIdentifier: String,
@@ -171,15 +175,11 @@ public class NotificationSession {
 
         let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
         guard let account = accountManager.account(with: accountIdentifier) else {
-            preconditionFailure("Unable to get account")
+            throw InitializationError.noAccount
         }
 
         let coreDataStack = CoreDataStack(account: account,
                                           applicationContainer: sharedContainerURL)
-
-        coreDataStack.loadStores { error in
-            // TODO jacob error handling
-        }
 
         let cookieStorage = ZMPersistentCookieStorage(forServerName: environment.backendURL.host!, userIdentifier: accountIdentifier)
         let reachabilityGroup = ZMSDispatchGroup(dispatchGroup: DispatchGroup(), label: "Sharing session reachability")!
@@ -325,4 +325,12 @@ public class NotificationSession {
         case data = "data"
         case identifier = "id"
     }
+}
+
+// MARK: - Helpers
+
+/// Errors
+
+enum UserProfileUpdateError: Int, Error {
+    case noAccount
 }

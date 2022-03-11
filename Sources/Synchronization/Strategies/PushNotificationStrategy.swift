@@ -20,7 +20,7 @@ import WireRequestStrategy
 
 public protocol NotificationSessionDelegate: AnyObject {
     func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?)
-    func processCallEvents(_ events: [ZMUpdateEvent])
+    func reportCallEvent(_ event: ZMUpdateEvent)
 }
 
 final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGeneratorSource {
@@ -106,25 +106,16 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
             localNotifications.removeAll()
         }
     }
-
-    private func processLocalNotifications() {
-        let notification: ZMLocalNotification?
-
-        if localNotifications.count > 1 {
-            notification = ZMLocalNotification.bundledMessages(count: localNotifications.count, in: moc)
-        } else {
-            notification = localNotifications.first
-        }
-
-        delegate?.notificationSessionDidGenerateNotification(notification)
-    }
     
     public func failedFetchingEvents() {
         pushNotificationStatus.didFailToFetchEvents()
     }
 }
 
+// MARK: - UpdateEventProcessor
+
 extension PushNotificationStrategy: UpdateEventProcessor {
+
     func processEventsIfReady() -> Bool {
         /// TODO check this
         return true
@@ -149,37 +140,60 @@ extension PushNotificationStrategy: UpdateEventProcessor {
         // Events will be processed in the foreground
     }
 
-    private func processEventsWhileInBackground(_ updateEvents: [ZMUpdateEvent]) {
-        let callEvents = updateEvents.filter({ event in
-            if event.type == .conversationOtrMessageAdd,
-               let genericMessage = GenericMessage(from: event), genericMessage.hasCalling {
-                return true
-            } else {
-                return false
+}
+
+extension PushNotificationStrategy {
+
+    private func processEventsWhileInBackground(_ events: [ZMUpdateEvent]) {
+        var callEvent: ZMUpdateEvent?
+
+        // When we receive events.
+        for event in events {
+            // The notification service can only report call events from iOS 14.5. Otherwise,
+            // we should continue to generate a call local notification, even if CallKit is enabled.
+            if #available(iOSApplicationExtension 14.5, *), event.isCallEvent {
+                // only store the last call event.
+                callEvent =  event
+            } else if let notification = notification(from: event, in: moc) {
+                localNotifications.append(notification)
             }
-        })
-        if !callEvents.isEmpty {
-            delegate?.processCallEvents(callEvents)
         }
 
-        let nonCallEvents = updateEvents.filter { !callEvents.contains($0) }
-        if !nonCallEvents.isEmpty {
-            let notifications = convertToLocalNotifications(nonCallEvents, moc: self.moc)
-            localNotifications.append(contentsOf: notifications)
+        if let callEvent = callEvent {
+            delegate?.reportCallEvent(callEvent)
         }
+    }
+
+    private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
+        guard
+            let conversationID = event.conversationUUID,
+            let conversation = ZMConversation.fetch(with: conversationID, in: context) else {
+                return nil
+            }
+
+        return .init(event: event, conversation: conversation, managedObjectContext: context)
+    }
+
+    private func processLocalNotifications() {
+        let notification: ZMLocalNotification?
+
+        if localNotifications.count > 1 {
+            notification = ZMLocalNotification.bundledMessages(count: localNotifications.count, in: moc)
+        } else {
+            notification = localNotifications.first
+        }
+
+        delegate?.notificationSessionDidGenerateNotification(notification)
     }
 
 }
 
-// MARK: - Converting events to localNotifications
-extension PushNotificationStrategy {
-    private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
-        return events.compactMap { event in
-            var conversation: ZMConversation?
-            if let conversationID = event.conversationUUID {
-                conversation = ZMConversation.fetch(with: conversationID, in: moc)
-            }
-            return ZMLocalNotification(event: event, conversation: conversation, managedObjectContext: moc)
-        }
+// MARK: - Helper
+
+private extension ZMUpdateEvent {
+
+    var isCallEvent: Bool {
+        return type == .conversationOtrMessageAdd && GenericMessage(from: self)?.hasCalling == true
     }
+
 }
