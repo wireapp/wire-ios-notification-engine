@@ -77,14 +77,12 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
         return self.pushNotificationStatus.hasEventsToFetch
     }
 
-    // MARK: - UpdateEventProcessor
-
-    @objc func processEventsIfReady() -> Bool {
+    func processEventsIfReady() -> Bool {
         /// TODO check this
         return true
     }
 
-    @objc var eventConsumers: [ZMEventConsumer] {
+    var eventConsumers: [ZMEventConsumer] {
         /// TODO check this
         get {
             return []
@@ -184,6 +182,20 @@ extension PushNotificationStrategy {
 
 }
 
+// MARK: - Converting events to localNotifications
+
+extension PushNotificationStrategy {
+    private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
+        return events.compactMap { event in
+            var conversation: ZMConversation?
+            if let conversationID = event.conversationUUID {
+                conversation = ZMConversation.fetch(with: conversationID, in: moc)
+            }
+            return ZMLocalNotification(event: event, conversation: conversation, managedObjectContext: moc)
+        }
+    }
+}
+
 // MARK: - Helper
 
 private extension ZMUpdateEvent {
@@ -191,5 +203,4 @@ private extension ZMUpdateEvent {
     var isCallEvent: Bool {
         return type == .conversationOtrMessageAdd && GenericMessage(from: self)?.hasCalling == true
     }
-
 }
