@@ -165,7 +165,7 @@ extension PushNotificationStrategy {
                 return nil
             }
 
-        return .init(event: event, conversation: conversation, managedObjectContext: context)
+        return ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
     }
 
     private func processLocalNotifications() {
