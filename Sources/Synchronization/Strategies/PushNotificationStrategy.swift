@@ -20,7 +20,7 @@ import WireRequestStrategy
 
 public protocol NotificationSessionDelegate: AnyObject {
     func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?)
-    func reportCallEvent(_ event: ZMUpdateEvent)
+    func reportCallEvent(_ event: ZMUpdateEvent, currentTimestamp: TimeInterval)
 }
 
 final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGeneratorSource, UpdateEventProcessor {
@@ -154,7 +154,7 @@ extension PushNotificationStrategy {
         }
 
         if let callEvent = callEvent {
-            delegate?.reportCallEvent(callEvent)
+            delegate?.reportCallEvent(callEvent, currentTimestamp: managedObjectContext.serverTimeDelta)
         }
     }
 
