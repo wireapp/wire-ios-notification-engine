@@ -17,6 +17,7 @@
 //
 
 import WireRequestStrategy
+import Wire
 
 public protocol NotificationSessionDelegate: AnyObject {
     func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?)
@@ -24,6 +25,8 @@ public protocol NotificationSessionDelegate: AnyObject {
 }
 
 final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGeneratorSource, UpdateEventProcessor {
+
+    // MARK: - Properties
     
     var sync: NotificationStreamSync!
     private var pushNotificationStatus: PushNotificationStatus!
@@ -39,6 +42,8 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
     
     var eventDecoder: EventDecoder!
     var eventMOC: NSManagedObjectContext!
+
+    // MARK: - Life cycle
 
     init(withManagedObjectContext managedObjectContext: NSManagedObjectContext,
          eventContext: NSManagedObjectContext,
@@ -62,6 +67,8 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
         self.moc = managedObjectContext
         self.eventDecoder = EventDecoder(eventMOC: eventContext, syncMOC: managedObjectContext)
     }
+
+    // MARK: - Methods
     
     public override func nextRequestIfAllowed() -> ZMTransportRequest? {
         return isFetchingStreamForAPNS && !useLegacyPushNotifications ? requestGenerators.nextRequest() : nil
@@ -105,21 +112,28 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
 
 }
 
+// MARK: - Notification stream sync delegate
+
 extension PushNotificationStrategy: NotificationStreamSyncDelegate {
+
     public func fetchedEvents(_ events: [ZMUpdateEvent], hasMoreToFetch: Bool) {
         var eventIds: [UUID] = []
         var parsedEvents: [ZMUpdateEvent] = []
         var latestEventId: UUID? = nil
+
         for event in events {
             event.appendDebugInformation("From missing update events transcoder, processUpdateEventsAndReturnLastNotificationIDFromPayload")
             parsedEvents.append(event)
+
             if let uuid = event.uuid {
                 eventIds.append(uuid)
             }
+
             if !event.isTransient {
                 latestEventId = event.uuid
             }
         }
+
         eventProcessor.storeUpdateEvents(parsedEvents, ignoreBuffer: true)
         pushNotificationStatus.didFetch(eventIds: eventIds, lastEventId: latestEventId, finished: !hasMoreToFetch)
 
@@ -159,9 +173,10 @@ extension PushNotificationStrategy {
     private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
         guard
             let conversationID = event.conversationUUID,
-            let conversation = ZMConversation.fetch(with: conversationID, in: context) else {
-                return nil
-            }
+            let conversation = ZMConversation.fetch(with: conversationID, in: context)
+        else {
+            return nil
+        }
 
         return ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
     }
@@ -193,9 +208,11 @@ extension PushNotificationStrategy {
     private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
         return events.compactMap { event in
             var conversation: ZMConversation?
+
             if let conversationID = event.conversationUUID {
                 conversation = ZMConversation.fetch(with: conversationID, in: moc)
             }
+
             return ZMLocalNotification(event: event, conversation: conversation, managedObjectContext: moc)
         }
     }
@@ -208,4 +225,5 @@ private extension ZMUpdateEvent {
     var isCallEvent: Bool {
         return type == .conversationOtrMessageAdd && GenericMessage(from: self)?.hasCalling == true
     }
+
 }
