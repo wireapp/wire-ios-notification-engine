@@ -29,6 +29,8 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
     private var pushNotificationStatus: PushNotificationStatus!
     private var eventProcessor: UpdateEventProcessor!
     private var moc: NSManagedObjectContext!
+
+    private var callEvent: ZMUpdateEvent?
     private var localNotifications = [ZMLocalNotification]()
 
     private weak var delegate: NotificationSessionDelegate?
@@ -122,6 +124,8 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
         pushNotificationStatus.didFetch(eventIds: eventIds, lastEventId: latestEventId, finished: !hasMoreToFetch)
 
         if !hasMoreToFetch {
+            processCallEvent()
+
             // We should only process local notifications once after we've finished fetching
             // all events because otherwise we tell the delegate (i.e the notification
             // service extension) to use its content handler more than once, which may lead
@@ -139,22 +143,16 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
 extension PushNotificationStrategy {
 
     private func processEventsWhileInBackground(_ events: [ZMUpdateEvent]) {
-        var callEvent: ZMUpdateEvent?
-
-        // When we receive events.
         for event in events {
+            // TODO: only store call event if CallKit is actually enabled by the user.
             // The notification service can only report call events from iOS 14.5. Otherwise,
             // we should continue to generate a call local notification, even if CallKit is enabled.
             if #available(iOSApplicationExtension 14.5, *), event.isCallEvent {
-                // only store the last call event.
+                // Only store the last call event.
                 callEvent =  event
             } else if let notification = notification(from: event, in: moc) {
                 localNotifications.append(notification)
             }
-        }
-
-        if let callEvent = callEvent {
-            delegate?.reportCallEvent(callEvent, currentTimestamp: managedObjectContext.serverTimeDelta)
         }
     }
 
@@ -166,6 +164,13 @@ extension PushNotificationStrategy {
             }
 
         return ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
+    }
+
+    private func processCallEvent() {
+        if let callEvent = callEvent {
+            delegate?.reportCallEvent(callEvent, currentTimestamp: managedObjectContext.serverTimeDelta)
+            self.callEvent = nil
+        }
     }
 
     private func processLocalNotifications() {
