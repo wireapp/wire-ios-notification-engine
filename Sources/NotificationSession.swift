@@ -292,12 +292,8 @@ public class NotificationSession {
                 return
             }
             
-            ////TODO katerina: update the badge count
-            // once notification processing is finished, it's safe to update the badge
             let completionHandler = {
                 completion(true)
-//                let unreadCount = Int(ZMConversation.unreadConversationCount(in: self.syncManagedObjectContext))
-//                self.sessionManager?.updateAppIconBadge(accountID: accountID, unreadCount: unreadCount)
             }
             
             self.fetchEvents(fromPushChannelPayload: payload, completionHandler: completionHandler)
@@ -309,13 +305,10 @@ public class NotificationSession {
             return completionHandler()
         }
         self.applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: {
-            
-            ////TODO katerina: check callEventStatus
             completionHandler()
         })
     }
-    
-    ////TODO: need to verify with the BE response
+
     private func messageNonce(fromPushChannelData payload: [AnyHashable : Any]) -> UUID? {
         guard let notificationData = payload[PushChannelKeys.data.rawValue] as? [AnyHashable : Any],
             let data = notificationData[PushChannelKeys.data.rawValue] as? [AnyHashable : Any],

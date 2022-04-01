@@ -19,7 +19,7 @@
 import WireRequestStrategy
 
 public protocol NotificationSessionDelegate: AnyObject {
-    func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?)
+    func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?, unreadConversationCount: Int)
     func reportCallEvent(_ event: ZMUpdateEvent, currentTimestamp: TimeInterval)
 }
 
@@ -195,8 +195,8 @@ extension PushNotificationStrategy {
         } else {
             notification = localNotifications.first
         }
-
-        delegate?.notificationSessionDidGenerateNotification(notification)
+        let unreadCount = Int(ZMConversation.unreadConversationCount(in: moc))
+        delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
     }
 
 }
@@ -207,12 +207,15 @@ extension PushNotificationStrategy {
     private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
         return events.compactMap { event in
             var conversation: ZMConversation?
-
+            
             if let conversationID = event.conversationUUID {
                 conversation = ZMConversation.fetch(with: conversationID, in: moc)
             }
-
-            return ZMLocalNotification(event: event, conversation: conversation, managedObjectContext: moc)
+            
+            let note = ZMLocalNotification(event: event, conversation: conversation, managedObjectContext: moc)
+            note?.increaseEstimatedUnreadCount(on: conversation)
+            
+            return note
         }
     }
 }
