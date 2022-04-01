@@ -17,7 +17,6 @@
 //
 
 import WireRequestStrategy
-import Wire
 
 public protocol NotificationSessionDelegate: AnyObject {
     func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?)
