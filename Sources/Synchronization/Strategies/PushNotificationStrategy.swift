@@ -1,6 +1,6 @@
 //
 // Wire
-// Copyright (C) 2020 Wire Swiss GmbH
+// Copyright (C) 2022 Wire Swiss GmbH
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -152,6 +152,7 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
 }
 
 // MARK: - Converting events to localNotifications
+
 extension PushNotificationStrategy {
     private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
         return events.compactMap { event in
@@ -169,16 +170,20 @@ extension PushNotificationStrategy {
         }
 
         if event.type == .conversationOtrMessageAdd,
-            let genericMessage = GenericMessage(from: event), genericMessage.hasCalling {
+           let genericMessage = GenericMessage(from: event), genericMessage.hasCalling {
 
+            /// The caller should not be the same as the user receiving the call event and
+            /// the age of the event is less than 30 seconds
+            let currentTimestamp = Date().addingTimeInterval(managedObjectContext.serverTimeDelta)
             guard let payload = genericMessage.calling.content.data(using: .utf8, allowLossyConversion: false),
-                  let callEventContent = CallEventContent(from: payload, with: JSONDecoder()),
-                  let callerID = callEventContent.callerID,
+                  let content = CallEventContent(from: payload),
+                  let callerID = content.callerID,
                   let caller = ZMUser.fetch(with: callerID, domain: nil, in: context),
                   caller != ZMUser.selfUser(in: context),
-                  let callState = callEventContent.callState else {
-                      return nil
-                  }
+                  let callState = content.callState,
+                  !isEventTimedOut(currentTimestamp: currentTimestamp, eventTimestamp: event.timestamp) else {
+                        return nil
+                    }
 
             note = ZMLocalNotification.init(callState: callState, conversation: conversation, caller: caller, moc: context)
         } else {
@@ -189,58 +194,11 @@ extension PushNotificationStrategy {
         return note
     }
 
-}
-
-// MARK: - Helper
-
-struct CallEventContent: Decodable {
-
-    enum CodingKeys: String, CodingKey {
-        case type
-        case resp
-        case callerIDString = "src_userid"
-    }
-
-     let type: String
-     let resp: Bool
-     let callerIDString: String
-
-     init?(from data: Data, with decoder: JSONDecoder) {
-         do {
-             self = try decoder.decode(Self.self, from: data)
-         } catch {
-             return nil
-         }
-     }
-
-    var callerID: UUID? {
-        return UUID(uuidString: callerIDString)
-    }
-
-    // A calling message is considered the start of a call if:
-    // 'type' is “SETUP” or “GROUPSTART” or “CONFSTART” and
-    // 'resp' is false
-    var callState: LocalNotificationType.CallState? {
-        switch (isStartCall, resp) {
-        case (true, false):
-            return .incomingCall(video: false)
-        case (false, _):
-            return .missedCall(cancelled: true)
-        default:
-            return nil
-        }
-    }
-
-    var isStartCall: Bool {
-        switch type {
-        case "SETUP", "GROUPSTART", "CONFSTART":
+    private func isEventTimedOut(currentTimestamp: Date, eventTimestamp: Date?) -> Bool {
+        guard let eventTimestamp = eventTimestamp else {
             return true
-        case "CANCEL":
-            return false
-        default:
-            return false
         }
+
+        return Int(currentTimestamp.timeIntervalSince(eventTimestamp)) > 30
     }
-
- }
-
+}
