@@ -17,6 +17,7 @@
 //
 
 import WireRequestStrategy
+import Foundation
 
 public protocol NotificationSessionDelegate: AnyObject {
 
@@ -154,14 +155,92 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
 extension PushNotificationStrategy {
     private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
         return events.compactMap { event in
-            var conversation: ZMConversation?
-            if let conversationID = event.conversationUUID {
-                conversation = ZMConversation.fetch(with: conversationID, in: moc)
-            }
-            let note = ZMLocalNotification(event: event, conversation: conversation, managedObjectContext: moc)
-            note?.increaseEstimatedUnreadCount(on: conversation)
-            
-            return note
+            return notification(from: event, in: moc)
         }
     }
+
+    private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
+        var note: ZMLocalNotification?
+        guard
+            let conversationID = event.conversationUUID,
+            let conversation = ZMConversation.fetch(with: conversationID, in: context)
+        else {
+            return nil
+        }
+
+        if event.type == .conversationOtrMessageAdd,
+            let genericMessage = GenericMessage(from: event), genericMessage.hasCalling {
+
+            guard let payload = genericMessage.calling.content.data(using: .utf8, allowLossyConversion: false),
+                  let callEventContent = CallEventContent(from: payload, with: JSONDecoder()),
+                  let callerID = callEventContent.callerID,
+                  let caller = ZMUser.fetch(with: callerID, domain: nil, in: context),
+                  caller != ZMUser.selfUser(in: context),
+                  let callState = callEventContent.callState else {
+                      return nil
+                  }
+
+            note = ZMLocalNotification.init(callState: callState, conversation: conversation, caller: caller, moc: context)
+        } else {
+            note = ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
+        }
+
+        note?.increaseEstimatedUnreadCount(on: conversation)
+        return note
+    }
+
 }
+
+// MARK: - Helper
+
+struct CallEventContent: Decodable {
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case resp
+        case callerIDString = "src_userid"
+    }
+
+     let type: String
+     let resp: Bool
+     let callerIDString: String
+
+     init?(from data: Data, with decoder: JSONDecoder) {
+         do {
+             self = try decoder.decode(Self.self, from: data)
+         } catch {
+             return nil
+         }
+     }
+
+    var callerID: UUID? {
+        return UUID(uuidString: callerIDString)
+    }
+
+    // A calling message is considered the start of a call if:
+    // 'type' is “SETUP” or “GROUPSTART” or “CONFSTART” and
+    // 'resp' is false
+    var callState: LocalNotificationType.CallState? {
+        switch (isStartCall, resp) {
+        case (true, false):
+            return .incomingCall(video: false)
+        case (false, _):
+            return .missedCall(cancelled: true)
+        default:
+            return nil
+        }
+    }
+
+    var isStartCall: Bool {
+        switch type {
+        case "SETUP", "GROUPSTART", "CONFSTART":
+            return true
+        case "CANCEL":
+            return false
+        default:
+            return false
+        }
+    }
+
+ }
+
