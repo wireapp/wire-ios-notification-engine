@@ -64,14 +64,7 @@ struct CallEventContent: Decodable {
     }
 
     var isStartCall: Bool {
-        switch type {
-        case "SETUP", "GROUPSTART", "CONFSTART":
-            return true
-        case "CANCEL":
-            return false
-        default:
-            return false
-        }
+        return ["SETUP", "GROUPSTART", "CONFSTART"].contains(type)
     }
 
  }
