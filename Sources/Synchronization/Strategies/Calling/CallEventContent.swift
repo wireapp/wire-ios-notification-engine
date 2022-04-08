@@ -18,9 +18,8 @@
 
 import WireRequestStrategy
 
-
-
 struct CallEventContent: Decodable {
+
     struct Properties: Decodable {
         private let videosend: String
 
