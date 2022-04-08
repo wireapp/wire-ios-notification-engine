@@ -107,6 +107,7 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
 }
 
 extension PushNotificationStrategy: NotificationStreamSyncDelegate {
+
     public func fetchedEvents(_ events: [ZMUpdateEvent], hasMoreToFetch: Bool) {
         var eventIds: [UUID] = []
         var parsedEvents: [ZMUpdateEvent] = []
@@ -149,11 +150,13 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
     public func failedFetchingEvents() {
         pushNotificationStatus.didFailToFetchEvents()
     }
+
 }
 
 // MARK: - Converting events to localNotifications
 
 extension PushNotificationStrategy {
+
     private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
         return events.compactMap { event in
             return notification(from: event, in: moc)
@@ -169,22 +172,18 @@ extension PushNotificationStrategy {
             return nil
         }
 
-        if event.type == .conversationOtrMessageAdd,
-           let genericMessage = GenericMessage(from: event), genericMessage.hasCalling {
+        if let callEventContent = CallEventContent(from: event) {
+            let currentTimestamp = Date().addingTimeInterval(managedObjectContext.serverTimeDelta)
 
             /// The caller should not be the same as the user receiving the call event and
             /// the age of the event is less than 30 seconds
-            let currentTimestamp = Date().addingTimeInterval(managedObjectContext.serverTimeDelta)
-            guard let payload = genericMessage.calling.content.data(using: .utf8, allowLossyConversion: false),
-                  let content = CallEventContent(from: payload),
-                  let callerID = content.callerID,
-                  let caller = ZMUser.fetch(with: callerID, domain: nil, in: context),
+            guard let callState = callEventContent.callState,
+                  let callerID = callEventContent.callerID,
+                  let caller = ZMUser.fetch(with: callerID, domain: event.senderDomain, in: context),
                   caller != ZMUser.selfUser(in: context),
-                  let callState = content.callState,
                   !isEventTimedOut(currentTimestamp: currentTimestamp, eventTimestamp: event.timestamp) else {
-                        return nil
-                    }
-
+                      return nil
+                  }
             note = ZMLocalNotification.init(callState: callState, conversation: conversation, caller: caller, moc: context)
         } else {
             note = ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
@@ -201,4 +200,24 @@ extension PushNotificationStrategy {
 
         return Int(currentTimestamp.timeIntervalSince(eventTimestamp)) > 30
     }
+
+}
+
+// MARK: - Helpers
+
+private extension CallEventContent {
+
+    init?(from event: ZMUpdateEvent) {
+        guard
+            event.type == .conversationOtrMessageAdd,
+            let message = GenericMessage(from: event),
+            message.hasCalling,
+            let payload = message.calling.content.data(using: .utf8, allowLossyConversion: false)
+        else {
+            return nil
+        }
+
+        self.init(from: payload)
+    }
+
 }

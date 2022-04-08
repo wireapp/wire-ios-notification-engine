@@ -18,20 +18,33 @@
 
 import WireRequestStrategy
 
+
+
 struct CallEventContent: Decodable {
+    struct Properties: Decodable {
+        private let videosend: String
+
+        var isVideo: Bool {
+            return videosend == "true"
+        }
+    }
 
     /// Call event type
     let type: String
 
-    let resp: Bool
+    /// Properties containing infor whether the incoming call has video or not
+    let props: Properties?
 
     /// Caller Id
     let callerIDString: String
+
+    let resp: Bool
 
     private enum CodingKeys: String, CodingKey {
         case type
         case resp
         case callerIDString = "src_userid"
+        case props
     }
 
     // MARK: - Initialization
@@ -53,12 +66,11 @@ struct CallEventContent: Decodable {
     // 'type' is “SETUP” or “GROUPSTART” or “CONFSTART” and
     // 'resp' is false
     var callState: LocalNotificationType.CallState? {
-        switch (isStartCall, resp) {
-        case (true, false):
-            return .incomingCall(video: false)
-        case (false, _):
+        if isStartCall && !resp {
+            return .incomingCall(video: props?.isVideo ?? false)
+        } else if isEndCall {
             return .missedCall(cancelled: true)
-        default:
+        } else {
             return nil
         }
     }
@@ -67,5 +79,8 @@ struct CallEventContent: Decodable {
         return ["SETUP", "GROUPSTART", "CONFSTART"].contains(type)
     }
 
- }
+    var isEndCall: Bool {
+        return type == "CANCEL"
+    }
 
+ }
