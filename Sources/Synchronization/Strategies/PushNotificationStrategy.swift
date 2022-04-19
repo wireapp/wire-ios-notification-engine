@@ -165,12 +165,10 @@ extension PushNotificationStrategy {
 
     private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
         var note: ZMLocalNotification?
-        guard
-            let conversationID = event.conversationUUID,
-            let conversation = ZMConversation.fetch(with: conversationID, in: context)
-        else {
+        guard let conversationID = event.conversationUUID else {
             return nil
         }
+        let conversation = ZMConversation.fetch(with: conversationID, in: context)
 
         if let callEventContent = CallEventContent(from: event) {
             let currentTimestamp = Date().addingTimeInterval(managedObjectContext.serverTimeDelta)
