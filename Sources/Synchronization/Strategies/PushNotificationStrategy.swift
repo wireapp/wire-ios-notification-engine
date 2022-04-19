@@ -80,12 +80,10 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
     }
 
     func processEventsIfReady() -> Bool {
-        /// TODO check this
         return true
     }
 
     var eventConsumers: [ZMEventConsumer] {
-        /// TODO check this
         get {
             return []
         }
