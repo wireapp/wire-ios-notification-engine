@@ -166,6 +166,7 @@ extension PushNotificationStrategy {
         guard let conversationID = event.conversationUUID else {
             return nil
         }
+
         let conversation = ZMConversation.fetch(with: conversationID, in: context)
 
         if let callEventContent = CallEventContent(from: event) {
