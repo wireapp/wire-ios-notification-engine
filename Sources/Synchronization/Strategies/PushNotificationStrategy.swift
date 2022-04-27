@@ -168,17 +168,6 @@ extension PushNotificationStrategy {
         }
     }
 
-    private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
-        guard
-            let conversationID = event.conversationUUID,
-            let conversation = ZMConversation.fetch(with: conversationID, in: context)
-        else {
-            return nil
-        }
-
-        return ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
-    }
-
     private func processCallEvent() {
         if let callEvent = callEvent {
             delegate?.reportCallEvent(callEvent, currentTimestamp: managedObjectContext.serverTimeDelta)
@@ -196,10 +185,6 @@ extension PushNotificationStrategy {
         }
         let unreadCount = Int(ZMConversation.unreadConversationCount(in: moc))
         delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
-    }
-    
-    public func failedFetchingEvents() {
-        pushNotificationStatus.didFailToFetchEvents()
     }
 
 }
