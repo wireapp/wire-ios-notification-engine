@@ -268,7 +268,7 @@ private extension ZMUpdateEvent {
     var isIncomingCallEvent: Bool {
         guard
             let content = CallEventContent(from: self),
-            case .incoming = content.callState
+            case .incomingCall = content.callState
         else {
             return false
         }
