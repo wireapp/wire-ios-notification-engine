@@ -262,7 +262,29 @@ private extension CallEventContent {
 private extension ZMUpdateEvent {
 
     var isCallEvent: Bool {
-        return type == .conversationOtrMessageAdd && GenericMessage(from: self)?.hasCalling == true
+        return CallEventContent(from: self) != nil
+    }
+
+    var isIncomingCallEvent: Bool {
+        guard
+            let content = CallEventContent(from: self),
+            case .incoming = content.callState
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    var isMissedCallEvent: Bool {
+        guard
+            let content = CallEventContent(from: self),
+            case .missedCall = content.callState
+        else {
+            return false
+        }
+
+        return true
     }
 
 }
