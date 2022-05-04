@@ -18,120 +18,7 @@
 
 
 import Foundation
-import WireDataModel
-import WireTransport
 import WireRequestStrategy
-import WireLinkPreview
-
-class ClientRegistrationStatus : NSObject, ClientRegistrationDelegate {
-    
-    let context : NSManagedObjectContext
-    
-    init(context: NSManagedObjectContext) {
-        self.context = context
-    }
-    
-    var clientIsReadyForRequests: Bool {
-        if let clientId = context.persistentStoreMetadata(forKey: "PersistedClientId") as? String { // TODO move constant into shared framework
-            return !clientId.isEmpty
-        }
-        
-        return false
-    }
-    
-    func didDetectCurrentClientDeletion() {
-        // nop
-    }
-}
-
-class AuthenticationStatus : AuthenticationStatusProvider {
-    
-    let transportSession : ZMTransportSession
-    
-    init(transportSession: ZMTransportSession) {
-        self.transportSession = transportSession
-    }
-    
-    var state: AuthenticationState {
-        return isLoggedIn ? .authenticated : .unauthenticated
-    }
-    
-    private var isLoggedIn : Bool {
-        return transportSession.cookieStorage.authenticationCookieData != nil
-    }
-    
-}
-
-extension BackendEnvironmentProvider {
-    func cookieStorage(for account: Account) -> ZMPersistentCookieStorage {
-        let backendURL = self.backendURL.host!
-        return ZMPersistentCookieStorage(forServerName: backendURL, userIdentifier: account.userIdentifier)
-    }
-    
-    public func isAuthenticated(_ account: Account) -> Bool {
-        return cookieStorage(for: account).authenticationCookieData != nil
-    }
-}
-
-class ApplicationStatusDirectory : ApplicationStatus {
-
-    let transportSession : ZMTransportSession
-
-    /// The authentication status used to verify a user is authenticated
-    public let authenticationStatus: AuthenticationStatusProvider
-
-    /// The client registration status used to lookup if a user has registered a self client
-    public let clientRegistrationStatus : ClientRegistrationDelegate
-
-    public let linkPreviewDetector: LinkPreviewDetectorType
-    
-    public var pushNotificationStatus: PushNotificationStatus
-
-    public init(managedObjectContext: NSManagedObjectContext,
-                transportSession: ZMTransportSession,
-                authenticationStatus: AuthenticationStatusProvider,
-                clientRegistrationStatus: ClientRegistrationStatus,
-                linkPreviewDetector: LinkPreviewDetectorType) {
-        self.transportSession = transportSession
-        self.authenticationStatus = authenticationStatus
-        self.clientRegistrationStatus = clientRegistrationStatus
-        self.linkPreviewDetector = linkPreviewDetector
-        self.pushNotificationStatus = PushNotificationStatus(managedObjectContext: managedObjectContext)
-    }
-
-    public convenience init(syncContext: NSManagedObjectContext, transportSession: ZMTransportSession) {
-        let authenticationStatus = AuthenticationStatus(transportSession: transportSession)
-        let clientRegistrationStatus = ClientRegistrationStatus(context: syncContext)
-        let linkPreviewDetector = LinkPreviewDetector()
-        
-        self.init(managedObjectContext: syncContext,transportSession: transportSession, authenticationStatus: authenticationStatus, clientRegistrationStatus: clientRegistrationStatus, linkPreviewDetector: linkPreviewDetector)
-    }
-
-    public var synchronizationState: SynchronizationState {
-        if clientRegistrationStatus.clientIsReadyForRequests {
-            return .online
-        } else {
-            return .unauthenticated
-        }
-    }
-
-    public var operationState: OperationState {
-        return .background
-    }
-
-    public var clientRegistrationDelegate: ClientRegistrationDelegate {
-        return self.clientRegistrationStatus
-    }
-
-    public var requestCancellation: ZMRequestCancellation {
-        return transportSession
-    }
-
-    func requestSlowSync() {
-        // we don't do slow syncing in the notification engine
-    }
-
-}
 
 public protocol NotificationSessionDelegate: AnyObject {
 
@@ -145,21 +32,26 @@ public protocol NotificationSessionDelegate: AnyObject {
 /// the framework should create an instance as soon as possible in
 /// the lifetime of the notification extension, and hold on to that session
 /// for the entire lifetime.
+///
 public class NotificationSession {
 
     /// The failure reason of a `NotificationSession` initialization
     /// - noAccount: Account doesn't exist
+
     public enum InitializationError: Error {
         case noAccount
     }
 
     // MARK: - Properties
 
-    /// Directory of all application statuses
+    /// Directory of all application statuses.
+
     private let applicationStatusDirectory : ApplicationStatusDirectory
 
-    /// The list to which save notifications of the UI moc are appended and persistet
+    /// The list to which save notifications of the UI moc are appended and persisted.
+
     private let saveNotificationPersistence: ContextDidSaveNotificationPersistence
+
     private var contextSaveObserverToken: NSObjectProtocol?
     private let transportSession: ZMTransportSession
     private let coreDataStack: CoreDataStack
@@ -446,7 +338,6 @@ extension NotificationSession {
 
 }
 
-
 // MARK: - Helpers
 
 private extension CallEventContent {
@@ -465,8 +356,6 @@ private extension CallEventContent {
     }
 
 }
-
-// MARK: - Helper
 
 private extension ZMUpdateEvent {
 
