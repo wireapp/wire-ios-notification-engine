@@ -407,10 +407,6 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
 extension NotificationSession {
 
-    private func convertToLocalNotifications(_ events: [ZMUpdateEvent], context: NSManagedObjectContext) -> [ZMLocalNotification] {
-        return events.compactMap { event in notification(from: event, in: context) }
-    }
-
     private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
         var note: ZMLocalNotification?
 
