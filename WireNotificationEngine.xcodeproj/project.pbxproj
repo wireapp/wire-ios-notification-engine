@@ -30,7 +30,6 @@
 		06894D89276B282B00DA4E33 /* WireMockTransport.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06894D3A276B26D500DA4E33 /* WireMockTransport.xcframework */; };
 		06894D8C276B282F00DA4E33 /* OCMock.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06894D4A276B26D600DA4E33 /* OCMock.xcframework */; };
 		069712912497B96E00C32169 /* OperationLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06394AA12497B24600380494 /* OperationLoop.swift */; };
-		069712942497C17600C32169 /* StrategyFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069712922497C15900C32169 /* StrategyFactory.swift */; };
 		069712972497C1BF00C32169 /* NotificationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069712952497C1BC00C32169 /* NotificationSession.swift */; };
 		069712992497C2B900C32169 /* AuthenticationStatusProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069712982497C2B900C32169 /* AuthenticationStatusProvider.swift */; };
 		0697129D2497CAC200C32169 /* PushNotificationStrategy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0697129C2497CAC200C32169 /* PushNotificationStrategy.swift */; };
@@ -85,7 +84,6 @@
 		06894D48276B26D600DA4E33 /* WireProtos.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = WireProtos.xcframework; path = Carthage/Build/WireProtos.xcframework; sourceTree = "<group>"; };
 		06894D49276B26D600DA4E33 /* SwiftProtobuf.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SwiftProtobuf.xcframework; path = Carthage/Build/SwiftProtobuf.xcframework; sourceTree = "<group>"; };
 		06894D4A276B26D600DA4E33 /* OCMock.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = OCMock.xcframework; path = Carthage/Build/OCMock.xcframework; sourceTree = "<group>"; };
-		069712922497C15900C32169 /* StrategyFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrategyFactory.swift; sourceTree = "<group>"; };
 		069712952497C1BC00C32169 /* NotificationSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSession.swift; sourceTree = "<group>"; };
 		069712982497C2B900C32169 /* AuthenticationStatusProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationStatusProvider.swift; sourceTree = "<group>"; };
 		0697129C2497CAC200C32169 /* PushNotificationStrategy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationStrategy.swift; sourceTree = "<group>"; };
@@ -230,7 +228,6 @@
 		0697129A2497CA8F00C32169 /* Synchronization */ = {
 			isa = PBXGroup;
 			children = (
-				069712922497C15900C32169 /* StrategyFactory.swift */,
 				06394AA12497B24600380494 /* OperationLoop.swift */,
 				0697129B2497CA9A00C32169 /* Strategies */,
 			);
@@ -432,7 +429,6 @@
 				067ECB602487ABF700701956 /* AppDelegate.swift in Sources */,
 				069712912497B96E00C32169 /* OperationLoop.swift in Sources */,
 				0697129D2497CAC200C32169 /* PushNotificationStrategy.swift in Sources */,
-				069712942497C17600C32169 /* StrategyFactory.swift in Sources */,
 				069712992497C2B900C32169 /* AuthenticationStatusProvider.swift in Sources */,
 				069712972497C1BF00C32169 /* NotificationSession.swift in Sources */,
 			);

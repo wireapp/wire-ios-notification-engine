@@ -164,7 +164,6 @@ public class NotificationSession {
     private let transportSession: ZMTransportSession
     private let coreDataStack: CoreDataStack
     private let operationLoop: RequestGeneratingOperationLoop
-    private let strategyFactory: StrategyFactory
 
     public let accountIdentifier: UUID
 
@@ -236,7 +235,6 @@ public class NotificationSession {
                   saveNotificationPersistence: ContextDidSaveNotificationPersistence,
                   applicationStatusDirectory: ApplicationStatusDirectory,
                   operationLoop: RequestGeneratingOperationLoop,
-                  strategyFactory: StrategyFactory,
                   accountIdentifier: UUID) throws {
         
         self.coreDataStack = coreDataStack
@@ -244,7 +242,6 @@ public class NotificationSession {
         self.saveNotificationPersistence = saveNotificationPersistence
         self.applicationStatusDirectory = applicationStatusDirectory
         self.operationLoop = operationLoop
-        self.strategyFactory = strategyFactory
         self.accountIdentifier = accountIdentifier
     }
     
@@ -259,14 +256,18 @@ public class NotificationSession {
         let applicationStatusDirectory = ApplicationStatusDirectory(syncContext: coreDataStack.syncContext,
                                                                     transportSession: transportSession)
         let notificationsTracker = (analytics != nil) ? NotificationsTracker(analytics: analytics!) : nil
-        let strategyFactory = StrategyFactory(contextProvider: coreDataStack,
-                                              applicationStatus: applicationStatusDirectory,
-                                              pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
-                                              notificationsTracker: notificationsTracker,
-                                              pushNotificationStrategyDelegate: nil,
-                                              useLegacyPushNotifications: useLegacyPushNotifications)
-        
-        let requestGeneratorStore = RequestGeneratorStore(strategies: strategyFactory.strategies)
+
+        let pushNotificationStrategy = PushNotificationStrategy(
+            withManagedObjectContext: coreDataStack.syncContext,
+            eventContext: coreDataStack.eventContext,
+            applicationStatus: applicationStatusDirectory,
+            pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
+            notificationsTracker: notificationsTracker,
+            delegate: nil, // TODO: set to self
+            useLegacyPushNotifications: false // TODO: remove
+        )
+
+        let requestGeneratorStore = RequestGeneratorStore(strategies: [pushNotificationStrategy])
         
         let operationLoop = RequestGeneratingOperationLoop(
             userContext: coreDataStack.viewContext,
@@ -285,7 +286,6 @@ public class NotificationSession {
             saveNotificationPersistence: saveNotificationPersistence,
             applicationStatusDirectory: applicationStatusDirectory,
             operationLoop: operationLoop,
-            strategyFactory: strategyFactory,
             accountIdentifier: accountIdentifier
         )
     }
@@ -295,9 +295,9 @@ public class NotificationSession {
             NotificationCenter.default.removeObserver(token)
             contextSaveObserverToken = nil
         }
+        
         transportSession.reachability.tearDown()
         transportSession.tearDown()
-        strategyFactory.tearDown()
     }
     
     public func processPushNotification(with payload: [AnyHashable: Any], completion: @escaping (Bool) -> Void) {
