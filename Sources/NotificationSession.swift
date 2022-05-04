@@ -80,10 +80,8 @@ public class NotificationSession {
         accountIdentifier: UUID,
         environment: BackendEnvironmentProvider,
         analytics: AnalyticsType?,
-        delegate: NotificationSessionDelegate?,
-        useLegacyPushNotifications: Bool
+        delegate: NotificationSessionDelegate?
     ) throws {
-
         let sharedContainerURL = FileManager.sharedContainerDirectory(for: applicationGroupIdentifier)
         let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
 
@@ -91,8 +89,10 @@ public class NotificationSession {
             throw InitializationError.noAccount
         }
 
-        let coreDataStack = CoreDataStack(account: account,
-                                          applicationContainer: sharedContainerURL)
+        let coreDataStack = CoreDataStack(
+            account: account,
+            applicationContainer: sharedContainerURL
+        )
 
         coreDataStack.loadStores { error in
             // TODO jacob error handling
@@ -111,14 +111,13 @@ public class NotificationSession {
             applicationGroupIdentifier: applicationGroupIdentifier,
             applicationVersion: "1.0.0"
         )
-        
+
         try self.init(
             coreDataStack: coreDataStack,
             transportSession: transportSession,
             cachesDirectory: FileManager.default.cachesURLForAccount(with: accountIdentifier, in: sharedContainerURL),
             accountContainer: CoreDataStack.accountDataFolder(accountIdentifier: accountIdentifier, applicationContainer: sharedContainerURL),
             analytics: analytics,
-            useLegacyPushNotifications: useLegacyPushNotifications,
             accountIdentifier: accountIdentifier
         )
     }
@@ -129,7 +128,6 @@ public class NotificationSession {
         cachesDirectory: URL,
         accountContainer: URL,
         analytics: AnalyticsType?,
-        useLegacyPushNotifications: Bool,
         accountIdentifier: UUID
     ) throws {
         let applicationStatusDirectory = ApplicationStatusDirectory(
@@ -145,8 +143,7 @@ public class NotificationSession {
             applicationStatus: applicationStatusDirectory,
             pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
             notificationsTracker: notificationsTracker,
-            delegate: nil, // TODO: set to self
-            useLegacyPushNotifications: false // TODO: remove
+            delegate: nil // TODO: set to self
         )
 
         let requestGeneratorStore = RequestGeneratorStore(strategies: [pushNotificationStrategy])

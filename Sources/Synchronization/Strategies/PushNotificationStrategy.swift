@@ -37,29 +37,30 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
 
     weak var delegate: PushNotificationStrategyDelegate?
 
-    private let useLegacyPushNotifications: Bool
-    
     var eventDecoder: EventDecoder!
     var eventMOC: NSManagedObjectContext!
 
     // MARK: - Life cycle
 
-    init(withManagedObjectContext managedObjectContext: NSManagedObjectContext,
-         eventContext: NSManagedObjectContext,
-         applicationStatus: ApplicationStatus,
-         pushNotificationStatus: PushNotificationStatus,
-         notificationsTracker: NotificationsTracker?,
-         delegate: PushNotificationStrategyDelegate?,
-         useLegacyPushNotifications: Bool) {
-
-        self.useLegacyPushNotifications = useLegacyPushNotifications
-        
-        super.init(withManagedObjectContext: managedObjectContext,
-                   applicationStatus: applicationStatus)
+    init(
+        withManagedObjectContext managedObjectContext: NSManagedObjectContext,
+        eventContext: NSManagedObjectContext,
+        applicationStatus: ApplicationStatus,
+        pushNotificationStatus: PushNotificationStatus,
+        notificationsTracker: NotificationsTracker?,
+        delegate: PushNotificationStrategyDelegate?
+    ) {
+        super.init(
+            withManagedObjectContext: managedObjectContext,
+            applicationStatus: applicationStatus
+        )
        
-        sync = NotificationStreamSync(moc: managedObjectContext,
-                                      notificationsTracker: notificationsTracker,
-                                      delegate: self)
+        sync = NotificationStreamSync(
+            moc: managedObjectContext,
+            notificationsTracker: notificationsTracker,
+            delegate: self
+        )
+
         self.eventProcessor = self
         self.pushNotificationStatus = pushNotificationStatus
         self.delegate = delegate
@@ -70,11 +71,12 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
     // MARK: - Methods
     
     public override func nextRequestIfAllowed(for apiVersion: APIVersion) -> ZMTransportRequest? {
-        return isFetchingStreamForAPNS && !useLegacyPushNotifications ? requestGenerators.nextRequest(for: apiVersion) : nil
+        return nextRequest(for: apiVersion)
     }
     
     public override func nextRequest(for apiVersion: APIVersion) -> ZMTransportRequest? {
-        return isFetchingStreamForAPNS && !useLegacyPushNotifications ? requestGenerators.nextRequest(for: apiVersion) : nil
+        guard isFetchingStreamForAPNS else { return nil }
+        return requestGenerators.nextRequest(for: apiVersion)
     }
     
     public var requestGenerators: [ZMRequestGenerator] {
