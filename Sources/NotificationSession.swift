@@ -265,7 +265,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         }
 
         // Ensure this actually is a call event.
-        guard event.isCallEvent else {
+        guard let callContent = CallEventContent(from: event) else {
             return false
         }
 
@@ -275,7 +275,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         }
 
         // The conversation is needed to report where the call is taking place.
-        guard isValidConversation(in: event) else {
+        guard let conversation = conversation(in: event) else {
             return false
         }
 
@@ -295,8 +295,23 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             return false
         }
 
-        // TODO: If it's an incoming call, ensure the call does not exist so it can be reported.
-        // TODO: If it's a terminating call, ensure the call exists in CallKitManager so it can be ended.
+        guard let conversationID = conversation.remoteIdentifier else {
+            return false
+        }
+
+        let callExistsForConversation = VoIPPushHelper.existsOngoingCallInConversation(
+            withID: conversationID
+        )
+
+        // We can't report an incoming call if it already exists.
+        if case .incomingCall = callContent.callState, callExistsForConversation {
+            return false
+        }
+
+        // We can't terminate a call if it doesn't exist.
+        if case .missedCall = callContent.callState, !callExistsForConversation {
+            return false
+        }
 
         return true
     }
@@ -306,17 +321,17 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         return ZMUser.fetch(with: id, domain: event.senderDomain, in: context) != nil
     }
 
-    private func isValidConversation(in event: ZMUpdateEvent) -> Bool {
+    private func conversation(in event: ZMUpdateEvent) -> ZMConversation? {
         guard
             let id = event.conversationUUID,
             let conversation = ZMConversation.fetch(with: id, domain: event.conversationDomain, in: context),
             !conversation.needsToBeUpdatedFromBackend
             //conversation.callKitHandle != nil
         else {
-            return false
+            return nil
         }
 
-        return true
+        return conversation
     }
 
     func pushNotificationStrategyDidFinishFetchingEvents(_ strategy: PushNotificationStrategy) {
@@ -410,36 +425,6 @@ private extension CallEventContent {
         }
 
         self.init(from: payload)
-    }
-
-}
-
-private extension ZMUpdateEvent {
-
-    var isCallEvent: Bool {
-        return CallEventContent(from: self) != nil
-    }
-
-    var isIncomingCallEvent: Bool {
-        guard
-            let content = CallEventContent(from: self),
-            case .incomingCall = content.callState
-        else {
-            return false
-        }
-
-        return true
-    }
-
-    var isMissedCallEvent: Bool {
-        guard
-            let content = CallEventContent(from: self),
-            case .missedCall = content.callState
-        else {
-            return false
-        }
-
-        return true
     }
 
 }
