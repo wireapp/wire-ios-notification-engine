@@ -183,16 +183,18 @@ public class NotificationSession {
     /// - throws: `InitializationError.noAccount` in case the account does not exist
     /// - returns: The initialized session object if no error is thrown
     
-    public convenience init(applicationGroupIdentifier: String,
-                            accountIdentifier: UUID,
-                            environment: BackendEnvironmentProvider,
-                            analytics: AnalyticsType?,
-                            delegate: NotificationSessionDelegate?,
-                            useLegacyPushNotifications: Bool) throws {
-       
-        let sharedContainerURL = FileManager.sharedContainerDirectory(for: applicationGroupIdentifier)
+    public convenience init(
+        applicationGroupIdentifier: String,
+        accountIdentifier: UUID,
+        environment: BackendEnvironmentProvider,
+        analytics: AnalyticsType?,
+        delegate: NotificationSessionDelegate?,
+        useLegacyPushNotifications: Bool
+    ) throws {
 
+        let sharedContainerURL = FileManager.sharedContainerDirectory(for: applicationGroupIdentifier)
         let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
+
         guard let account = accountManager.account(with: accountIdentifier) else {
             throw InitializationError.noAccount
         }
@@ -228,33 +230,21 @@ public class NotificationSession {
             accountIdentifier: accountIdentifier
         )
     }
-    
-    internal init(coreDataStack: CoreDataStack,
-                  transportSession: ZMTransportSession,
-                  cachesDirectory: URL,
-                  saveNotificationPersistence: ContextDidSaveNotificationPersistence,
-                  applicationStatusDirectory: ApplicationStatusDirectory,
-                  operationLoop: RequestGeneratingOperationLoop,
-                  accountIdentifier: UUID) throws {
-        
-        self.coreDataStack = coreDataStack
-        self.transportSession = transportSession
-        self.saveNotificationPersistence = saveNotificationPersistence
-        self.applicationStatusDirectory = applicationStatusDirectory
-        self.operationLoop = operationLoop
-        self.accountIdentifier = accountIdentifier
-    }
-    
-    convenience init(coreDataStack: CoreDataStack,
-                     transportSession: ZMTransportSession,
-                     cachesDirectory: URL,
-                     accountContainer: URL,
-                     analytics: AnalyticsType?,
-                     useLegacyPushNotifications: Bool,
-                     accountIdentifier: UUID) throws {
-        
-        let applicationStatusDirectory = ApplicationStatusDirectory(syncContext: coreDataStack.syncContext,
-                                                                    transportSession: transportSession)
+
+    convenience init(
+        coreDataStack: CoreDataStack,
+        transportSession: ZMTransportSession,
+        cachesDirectory: URL,
+        accountContainer: URL,
+        analytics: AnalyticsType?,
+        useLegacyPushNotifications: Bool,
+        accountIdentifier: UUID
+    ) throws {
+        let applicationStatusDirectory = ApplicationStatusDirectory(
+            syncContext: coreDataStack.syncContext,
+            transportSession: transportSession
+        )
+
         let notificationsTracker = (analytics != nil) ? NotificationsTracker(analytics: analytics!) : nil
 
         let pushNotificationStrategy = PushNotificationStrategy(
@@ -290,15 +280,34 @@ public class NotificationSession {
         )
     }
 
+    init(
+        coreDataStack: CoreDataStack,
+        transportSession: ZMTransportSession,
+        cachesDirectory: URL,
+        saveNotificationPersistence: ContextDidSaveNotificationPersistence,
+        applicationStatusDirectory: ApplicationStatusDirectory,
+        operationLoop: RequestGeneratingOperationLoop,
+        accountIdentifier: UUID
+    ) throws {
+        self.coreDataStack = coreDataStack
+        self.transportSession = transportSession
+        self.saveNotificationPersistence = saveNotificationPersistence
+        self.applicationStatusDirectory = applicationStatusDirectory
+        self.operationLoop = operationLoop
+        self.accountIdentifier = accountIdentifier
+    }
+
     deinit {
         if let token = contextSaveObserverToken {
             NotificationCenter.default.removeObserver(token)
             contextSaveObserverToken = nil
         }
-        
+
         transportSession.reachability.tearDown()
         transportSession.tearDown()
     }
+
+    // MARK: - Methods
     
     public func processPushNotification(with payload: [AnyHashable: Any], completion: @escaping (Bool) -> Void) {
         Logging.network.debug("Received push notification with payload: \(payload)")
