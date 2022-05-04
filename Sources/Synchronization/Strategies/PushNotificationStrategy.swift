@@ -19,9 +19,11 @@
 import WireRequestStrategy
 import Foundation
 
-public protocol NotificationSessionDelegate: AnyObject {
-    func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?, unreadConversationCount: Int)
-    func reportCallEvent(_ event: ZMUpdateEvent, currentTimestamp: TimeInterval)
+protocol PushNotificationStrategyDelegate: AnyObject {
+
+    func pushNotificationStrategy(_ strategy: PushNotificationStrategy, didFetchEvents events: [ZMUpdateEvent])
+    func pushNotificationStrategyDidFinishFetchingEvents(_ strategy: PushNotificationStrategy)
+
 }
 
 final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGeneratorSource, UpdateEventProcessor {
@@ -33,10 +35,7 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
     private var eventProcessor: UpdateEventProcessor!
     private var moc: NSManagedObjectContext!
 
-    private var callEvent: ZMUpdateEvent?
-    private var localNotifications = [ZMLocalNotification]()
-
-    private weak var delegate: NotificationSessionDelegate?
+    weak var delegate: PushNotificationStrategyDelegate?
 
     private let useLegacyPushNotifications: Bool
     
@@ -50,7 +49,7 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
          applicationStatus: ApplicationStatus,
          pushNotificationStatus: PushNotificationStatus,
          notificationsTracker: NotificationsTracker?,
-         notificationSessionDelegate: NotificationSessionDelegate?,
+         delegate: PushNotificationStrategyDelegate?,
          useLegacyPushNotifications: Bool) {
 
         self.useLegacyPushNotifications = useLegacyPushNotifications
@@ -63,7 +62,7 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
                                       delegate: self)
         self.eventProcessor = self
         self.pushNotificationStatus = pushNotificationStatus
-        self.delegate = notificationSessionDelegate
+        self.delegate = delegate
         self.moc = managedObjectContext
         self.eventDecoder = EventDecoder(eventMOC: eventContext, syncMOC: managedObjectContext)
     }
@@ -100,7 +99,7 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
 
     @objc public func storeUpdateEvents(_ updateEvents: [ZMUpdateEvent], ignoreBuffer: Bool) {
         eventDecoder.decryptAndStoreEvents(updateEvents) { decryptedUpdateEvents in
-            self.processEventsWhileInBackground(decryptedUpdateEvents)
+            self.delegate?.pushNotificationStrategy(self, didFetchEvents: decryptedUpdateEvents)
         }
     }
 
@@ -136,14 +135,7 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
         pushNotificationStatus.didFetch(eventIds: eventIds, lastEventId: latestEventId, finished: !hasMoreToFetch)
 
         if !hasMoreToFetch {
-            processCallEvent()
-
-            // We should only process local notifications once after we've finished fetching
-            // all events because otherwise we tell the delegate (i.e the notification
-            // service extension) to use its content handler more than once, which may lead
-            // to unexpected behavior.
-            processLocalNotifications()
-            localNotifications.removeAll()
+            delegate?.pushNotificationStrategyDidFinishFetchingEvents(self)
         }
     }
     
@@ -152,139 +144,4 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
     }
 }
 
-extension PushNotificationStrategy {
 
-    private func processEventsWhileInBackground(_ events: [ZMUpdateEvent]) {
-        for event in events {
-            // TODO: only store call event if CallKit is actually enabled by the user.
-            // The notification service can only report call events from iOS 14.5. Otherwise,
-            // we should continue to generate a call local notification, even if CallKit is enabled.
-            if #available(iOSApplicationExtension 14.5, *), event.isCallEvent {
-                // Only store the last call event.
-                callEvent =  event
-            } else if let notification = notification(from: event, in: moc) {
-                localNotifications.append(notification)
-            }
-        }
-    }
-
-    private func processCallEvent() {
-        if let callEvent = callEvent {
-            delegate?.reportCallEvent(callEvent, currentTimestamp: managedObjectContext.serverTimeDelta)
-            self.callEvent = nil
-        }
-    }
-
-    private func processLocalNotifications() {
-        let notification: ZMLocalNotification?
-
-        if localNotifications.count > 1 {
-            notification = ZMLocalNotification.bundledMessages(count: localNotifications.count, in: moc)
-        } else {
-            notification = localNotifications.first
-        }
-        let unreadCount = Int(ZMConversation.unreadConversationCount(in: moc))
-        delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
-    }
-
-}
-
-// MARK: - Converting events to localNotifications
-
-extension PushNotificationStrategy {
-
-    private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
-        return events.compactMap { event in
-            return notification(from: event, in: moc)
-        }
-    }
-
-    private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
-        var note: ZMLocalNotification?
-        guard let conversationID = event.conversationUUID else {
-            return nil
-        }
-
-        let conversation = ZMConversation.fetch(with: conversationID, in: context)
-
-        if let callEventContent = CallEventContent(from: event) {
-            let currentTimestamp = Date().addingTimeInterval(managedObjectContext.serverTimeDelta)
-
-            /// The caller should not be the same as the user receiving the call event and
-            /// the age of the event is less than 30 seconds
-            guard let callState = callEventContent.callState,
-                  let callerID = callEventContent.callerID,
-                  let caller = ZMUser.fetch(with: callerID, domain: event.senderDomain, in: context),
-                  caller != ZMUser.selfUser(in: context),
-                  !isEventTimedOut(currentTimestamp: currentTimestamp, eventTimestamp: event.timestamp) else {
-                      return nil
-                  }
-            note = ZMLocalNotification.init(callState: callState, conversation: conversation, caller: caller, moc: context)
-        } else {
-            note = ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
-        }
-
-        note?.increaseEstimatedUnreadCount(on: conversation)
-        return note
-    }
-
-    private func isEventTimedOut(currentTimestamp: Date, eventTimestamp: Date?) -> Bool {
-        guard let eventTimestamp = eventTimestamp else {
-            return true
-        }
-
-        return Int(currentTimestamp.timeIntervalSince(eventTimestamp)) > 30
-    }
-
-}
-
-// MARK: - Helpers
-
-private extension CallEventContent {
-
-    init?(from event: ZMUpdateEvent) {
-        guard
-            event.type == .conversationOtrMessageAdd,
-            let message = GenericMessage(from: event),
-            message.hasCalling,
-            let payload = message.calling.content.data(using: .utf8, allowLossyConversion: false)
-        else {
-            return nil
-        }
-
-        self.init(from: payload)
-    }
-
-}
-
-// MARK: - Helper
-
-private extension ZMUpdateEvent {
-
-    var isCallEvent: Bool {
-        return CallEventContent(from: self) != nil
-    }
-
-    var isIncomingCallEvent: Bool {
-        guard
-            let content = CallEventContent(from: self),
-            case .incomingCall = content.callState
-        else {
-            return false
-        }
-
-        return true
-    }
-
-    var isMissedCallEvent: Bool {
-        guard
-            let content = CallEventContent(from: self),
-            case .missedCall = content.callState
-        else {
-            return false
-        }
-
-        return true
-    }
-
-}

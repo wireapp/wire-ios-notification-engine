@@ -28,7 +28,7 @@ class StrategyFactory {
     let pushNotificationStatus: PushNotificationStatus
     let notificationsTracker: NotificationsTracker?
     private(set) var strategies = [AnyObject]()
-    private(set) var delegate: NotificationSessionDelegate?
+    private(set) var delegate: PushNotificationStrategyDelegate?
 
     private var tornDown = false
 
@@ -36,14 +36,14 @@ class StrategyFactory {
          applicationStatus: ApplicationStatus,
          pushNotificationStatus: PushNotificationStatus,
          notificationsTracker: NotificationsTracker?,
-         notificationSessionDelegate: NotificationSessionDelegate?,
+         pushNotificationStrategyDelegate: PushNotificationStrategyDelegate?,
          useLegacyPushNotifications: Bool) {
 
         self.contextProvider = contextProvider
         self.applicationStatus = applicationStatus
         self.pushNotificationStatus = pushNotificationStatus
         self.notificationsTracker = notificationsTracker
-        self.delegate = notificationSessionDelegate
+        self.delegate = pushNotificationStrategyDelegate
 
         self.strategies = [
             createPushNotificationStrategy(useLegacyPushNotifications: useLegacyPushNotifications)
@@ -69,7 +69,7 @@ class StrategyFactory {
                                         applicationStatus: applicationStatus,
                                         pushNotificationStatus: pushNotificationStatus,
                                         notificationsTracker: notificationsTracker,
-                                        notificationSessionDelegate: delegate,
+                                        delegate: delegate,
                                         useLegacyPushNotifications: useLegacyPushNotifications)
     }
 }

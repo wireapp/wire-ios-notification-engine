@@ -133,6 +133,13 @@ class ApplicationStatusDirectory : ApplicationStatus {
 
 }
 
+public protocol NotificationSessionDelegate: AnyObject {
+
+    func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?, unreadConversationCount: Int)
+    func reportCallEvent(_ event: ZMUpdateEvent, currentTimestamp: TimeInterval)
+
+}
+
 /// A syncing layer for the notification processing
 /// - note: this is the entry point of this framework. Users of
 /// the framework should create an instance as soon as possible in
@@ -146,6 +153,8 @@ public class NotificationSession {
         case noAccount
     }
 
+    // MARK: - Properties
+
     /// Directory of all application statuses
     private let applicationStatusDirectory : ApplicationStatusDirectory
 
@@ -158,6 +167,17 @@ public class NotificationSession {
     private let strategyFactory: StrategyFactory
 
     public let accountIdentifier: UUID
+
+    private var callEvent: ZMUpdateEvent?
+    private var localNotifications = [ZMLocalNotification]()
+
+    private var context: NSManagedObjectContext {
+        return coreDataStack.syncContext
+    }
+
+    weak var delegate: NotificationSessionDelegate?
+
+    // MARK: - Life cycle
         
     /// Initializes a new `SessionDirectory` to be used in an extension environment
     /// - parameter databaseDirectory: The `NSURL` of the shared group container
@@ -205,7 +225,6 @@ public class NotificationSession {
             cachesDirectory: FileManager.default.cachesURLForAccount(with: accountIdentifier, in: sharedContainerURL),
             accountContainer: CoreDataStack.accountDataFolder(accountIdentifier: accountIdentifier, applicationContainer: sharedContainerURL),
             analytics: analytics,
-            delegate: delegate,
             useLegacyPushNotifications: useLegacyPushNotifications,
             accountIdentifier: accountIdentifier
         )
@@ -229,14 +248,13 @@ public class NotificationSession {
         self.accountIdentifier = accountIdentifier
     }
     
-    public convenience init(coreDataStack: CoreDataStack,
-                            transportSession: ZMTransportSession,
-                            cachesDirectory: URL,
-                            accountContainer: URL,
-                            analytics: AnalyticsType?,
-                            delegate: NotificationSessionDelegate?,
-                            useLegacyPushNotifications: Bool,
-                            accountIdentifier: UUID) throws {
+    convenience init(coreDataStack: CoreDataStack,
+                     transportSession: ZMTransportSession,
+                     cachesDirectory: URL,
+                     accountContainer: URL,
+                     analytics: AnalyticsType?,
+                     useLegacyPushNotifications: Bool,
+                     accountIdentifier: UUID) throws {
         
         let applicationStatusDirectory = ApplicationStatusDirectory(syncContext: coreDataStack.syncContext,
                                                                     transportSession: transportSession)
@@ -245,7 +263,7 @@ public class NotificationSession {
                                               applicationStatus: applicationStatusDirectory,
                                               pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
                                               notificationsTracker: notificationsTracker,
-                                              notificationSessionDelegate: delegate,
+                                              pushNotificationStrategyDelegate: nil,
                                               useLegacyPushNotifications: useLegacyPushNotifications)
         
         let requestGeneratorStore = RequestGeneratorStore(strategies: strategyFactory.strategies)
@@ -322,4 +340,153 @@ public class NotificationSession {
         case data = "data"
         case identifier = "id"
     }
+}
+
+extension NotificationSession: PushNotificationStrategyDelegate {
+
+    func pushNotificationStrategy(_ strategy: PushNotificationStrategy, didFetchEvents events: [ZMUpdateEvent]) {
+        for event in events {
+            // TODO: only store call event if CallKit is actually enabled by the user.
+            // The notification service can only report call events from iOS 14.5. Otherwise,
+            // we should continue to generate a call local notification, even if CallKit is enabled.
+            if #available(iOSApplicationExtension 14.5, *), event.isCallEvent {
+                // Only store the last call event.
+                callEvent =  event
+            } else if let notification = notification(from: event, in: context) {
+                localNotifications.append(notification)
+            }
+        }
+    }
+
+    func pushNotificationStrategyDidFinishFetchingEvents(_ strategy: PushNotificationStrategy) {
+        processCallEvent()
+
+        // We should only process local notifications once after we've finished fetching
+        // all events because otherwise we tell the delegate (i.e the notification
+        // service extension) to use its content handler more than once, which may lead
+        // to unexpected behavior.
+        processLocalNotifications()
+        localNotifications.removeAll()
+    }
+
+    private func processCallEvent() {
+        if let callEvent = callEvent {
+            delegate?.reportCallEvent(callEvent, currentTimestamp: context.serverTimeDelta)
+            self.callEvent = nil
+        }
+    }
+
+    private func processLocalNotifications() {
+        let notification: ZMLocalNotification?
+
+        if localNotifications.count > 1 {
+            notification = ZMLocalNotification.bundledMessages(count: localNotifications.count, in: context)
+        } else {
+            notification = localNotifications.first
+        }
+        let unreadCount = Int(ZMConversation.unreadConversationCount(in: context))
+        delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
+    }
+
+}
+
+// MARK: - Converting events to localNotifications
+
+extension NotificationSession {
+
+    private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
+        return events.compactMap { event in
+            return notification(from: event, in: moc)
+        }
+    }
+
+    private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
+        var note: ZMLocalNotification?
+        guard let conversationID = event.conversationUUID else {
+            return nil
+        }
+
+        let conversation = ZMConversation.fetch(with: conversationID, in: context)
+
+        if let callEventContent = CallEventContent(from: event) {
+            let currentTimestamp = Date().addingTimeInterval(context.serverTimeDelta)
+
+            /// The caller should not be the same as the user receiving the call event and
+            /// the age of the event is less than 30 seconds
+            guard let callState = callEventContent.callState,
+                  let callerID = callEventContent.callerID,
+                  let caller = ZMUser.fetch(with: callerID, domain: event.senderDomain, in: context),
+                  caller != ZMUser.selfUser(in: context),
+                  !isEventTimedOut(currentTimestamp: currentTimestamp, eventTimestamp: event.timestamp) else {
+                      return nil
+                  }
+            note = ZMLocalNotification.init(callState: callState, conversation: conversation, caller: caller, moc: context)
+        } else {
+            note = ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
+        }
+
+        note?.increaseEstimatedUnreadCount(on: conversation)
+        return note
+    }
+
+    private func isEventTimedOut(currentTimestamp: Date, eventTimestamp: Date?) -> Bool {
+        guard let eventTimestamp = eventTimestamp else {
+            return true
+        }
+
+        return Int(currentTimestamp.timeIntervalSince(eventTimestamp)) > 30
+    }
+
+}
+
+
+// MARK: - Helpers
+
+private extension CallEventContent {
+
+    init?(from event: ZMUpdateEvent) {
+        guard
+            event.type == .conversationOtrMessageAdd,
+            let message = GenericMessage(from: event),
+            message.hasCalling,
+            let payload = message.calling.content.data(using: .utf8, allowLossyConversion: false)
+        else {
+            return nil
+        }
+
+        self.init(from: payload)
+    }
+
+}
+
+// MARK: - Helper
+
+private extension ZMUpdateEvent {
+
+    var isCallEvent: Bool {
+        return CallEventContent(from: self) != nil
+    }
+
+    var isIncomingCallEvent: Bool {
+        guard
+            let content = CallEventContent(from: self),
+            case .incomingCall = content.callState
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    var isMissedCallEvent: Bool {
+        guard
+            let content = CallEventContent(from: self),
+            case .missedCall = content.callState
+        else {
+            return false
+        }
+
+        return true
+    }
+
 }
