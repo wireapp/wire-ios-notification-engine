@@ -248,16 +248,75 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
     func pushNotificationStrategy(_ strategy: PushNotificationStrategy, didFetchEvents events: [ZMUpdateEvent]) {
         for event in events {
-            // TODO: only store call event if CallKit is actually enabled by the user.
-            // The notification service can only report call events from iOS 14.5. Otherwise,
-            // we should continue to generate a call local notification, even if CallKit is enabled.
-            if #available(iOSApplicationExtension 14.5, *), event.isCallEvent {
+            if shouldHandleCallEvent(event) {
                 // Only store the last call event.
                 callEvent =  event
             } else if let notification = notification(from: event, in: context) {
                 localNotifications.append(notification)
             }
         }
+    }
+
+    private func shouldHandleCallEvent(_ event: ZMUpdateEvent) -> Bool {
+        // The API to report VoIP pushes from the notification service extension
+        // is only available from iOS 14.5.
+        guard #available(iOSApplicationExtension 14.5, *) else {
+            return false
+        }
+
+        // Ensure this actually is a call event.
+        guard event.isCallEvent else {
+            return false
+        }
+
+        // The sender is needed to report who the call is from.
+        guard isValidSender(in: event) else {
+            return false
+        }
+
+        // The conversation is needed to report where the call is taking place.
+        guard isValidConversation(in: event) else {
+            return false
+        }
+
+        // AVS is ready to process call events.
+        guard VoIPPushHelper.isAVSReady else {
+            return false
+        }
+
+        // CallKit may not be available because due to lack of permissions or it
+        // is disabled by the user.
+        guard VoIPPushHelper.isCallKitAvailable else {
+            return false
+        }
+
+        // The user session is needed to process the call event.
+        guard VoIPPushHelper.isUserSessionLoaded(accountID: accountIdentifier) else {
+            return false
+        }
+
+        // TODO: If it's an incoming call, ensure the call does not exist so it can be reported.
+        // TODO: If it's a terminating call, ensure the call exists in CallKitManager so it can be ended.
+
+        return true
+    }
+
+    private func isValidSender(in event: ZMUpdateEvent) -> Bool {
+        guard let id = event.senderUUID else { return false }
+        return ZMUser.fetch(with: id, domain: event.senderDomain, in: context) != nil
+    }
+
+    private func isValidConversation(in event: ZMUpdateEvent) -> Bool {
+        guard
+            let id = event.conversationUUID,
+            let conversation = ZMConversation.fetch(with: id, domain: event.conversationDomain, in: context),
+            !conversation.needsToBeUpdatedFromBackend
+            //conversation.callKitHandle != nil
+        else {
+            return false
+        }
+
+        return true
     }
 
     func pushNotificationStrategyDidFinishFetchingEvents(_ strategy: PushNotificationStrategy) {
