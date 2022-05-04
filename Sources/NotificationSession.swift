@@ -372,13 +372,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
     func pushNotificationStrategyDidFinishFetchingEvents(_ strategy: PushNotificationStrategy) {
         processCallEvent()
-
-        // We should only process local notifications once after we've finished fetching
-        // all events because otherwise we tell the delegate (i.e the notification
-        // service extension) to use its content handler more than once, which may lead
-        // to unexpected behavior.
         processLocalNotifications()
-        localNotifications.removeAll()
     }
 
     private func processCallEvent() {
@@ -399,6 +393,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
         let unreadCount = Int(ZMConversation.unreadConversationCount(in: context))
         delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
+        localNotifications.removeAll()
     }
 
 }
