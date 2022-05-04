@@ -326,7 +326,6 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             let id = event.conversationUUID,
             let conversation = ZMConversation.fetch(with: id, domain: event.conversationDomain, in: context),
             !conversation.needsToBeUpdatedFromBackend
-            //conversation.callKitHandle != nil
         else {
             return nil
         }
