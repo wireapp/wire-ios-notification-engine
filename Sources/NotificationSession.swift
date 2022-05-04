@@ -327,21 +327,24 @@ public class NotificationSession {
         }
     }
     
-    func fetchEvents(fromPushChannelPayload payload: [AnyHashable : Any], completionHandler: @escaping () -> Void) {
+    func fetchEvents(fromPushChannelPayload payload: [AnyHashable: Any], completionHandler: @escaping () -> Void) {
         guard let nonce = self.messageNonce(fromPushChannelData: payload) else {
-            return completionHandler()
-        }
-        self.applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: {
             completionHandler()
-        })
+            return
+        }
+
+        applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: completionHandler)
     }
 
-    private func messageNonce(fromPushChannelData payload: [AnyHashable : Any]) -> UUID? {
-        guard let notificationData = payload[PushChannelKeys.data.rawValue] as? [AnyHashable : Any],
-            let data = notificationData[PushChannelKeys.data.rawValue] as? [AnyHashable : Any],
-            let rawUUID = data[PushChannelKeys.identifier.rawValue] as? String else {
-                return nil
+    private func messageNonce(fromPushChannelData payload: [AnyHashable: Any]) -> UUID? {
+        guard
+            let notificationData = payload[PushChannelKeys.data.rawValue] as? [AnyHashable: Any],
+            let data = notificationData[PushChannelKeys.data.rawValue] as? [AnyHashable: Any],
+            let rawUUID = data[PushChannelKeys.identifier.rawValue] as? String
+        else {
+            return nil
         }
+
         return UUID(uuidString: rawUUID)
     }
     
@@ -393,6 +396,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         } else {
             notification = localNotifications.first
         }
+
         let unreadCount = Int(ZMConversation.unreadConversationCount(in: context))
         delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
     }
@@ -403,14 +407,13 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
 extension NotificationSession {
 
-    private func convertToLocalNotifications(_ events: [ZMUpdateEvent], moc: NSManagedObjectContext) -> [ZMLocalNotification] {
-        return events.compactMap { event in
-            return notification(from: event, in: moc)
-        }
+    private func convertToLocalNotifications(_ events: [ZMUpdateEvent], context: NSManagedObjectContext) -> [ZMLocalNotification] {
+        return events.compactMap { event in notification(from: event, in: context) }
     }
 
     private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
         var note: ZMLocalNotification?
+
         guard let conversationID = event.conversationUUID else {
             return nil
         }
@@ -422,14 +425,18 @@ extension NotificationSession {
 
             /// The caller should not be the same as the user receiving the call event and
             /// the age of the event is less than 30 seconds
-            guard let callState = callEventContent.callState,
-                  let callerID = callEventContent.callerID,
-                  let caller = ZMUser.fetch(with: callerID, domain: event.senderDomain, in: context),
-                  caller != ZMUser.selfUser(in: context),
-                  !isEventTimedOut(currentTimestamp: currentTimestamp, eventTimestamp: event.timestamp) else {
-                      return nil
-                  }
+            guard
+                let callState = callEventContent.callState,
+                let callerID = callEventContent.callerID,
+                let caller = ZMUser.fetch(with: callerID, domain: event.senderDomain, in: context),
+                caller != ZMUser.selfUser(in: context),
+                !isEventTimedOut(currentTimestamp: currentTimestamp, eventTimestamp: event.timestamp)
+            else {
+                return nil
+            }
+
             note = ZMLocalNotification.init(callState: callState, conversation: conversation, caller: caller, moc: context)
+
         } else {
             note = ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
         }
