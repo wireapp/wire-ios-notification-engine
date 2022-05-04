@@ -66,7 +66,7 @@ public class NotificationSession {
         return coreDataStack.syncContext
     }
 
-    weak var delegate: NotificationSessionDelegate?
+    public weak var delegate: NotificationSessionDelegate?
 
     // MARK: - Life cycle
         
@@ -79,8 +79,7 @@ public class NotificationSession {
         applicationGroupIdentifier: String,
         accountIdentifier: UUID,
         environment: BackendEnvironmentProvider,
-        analytics: AnalyticsType?,
-        delegate: NotificationSessionDelegate?
+        analytics: AnalyticsType?
     ) throws {
         let sharedContainerURL = FileManager.sharedContainerDirectory(for: applicationGroupIdentifier)
         let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
@@ -142,8 +141,7 @@ public class NotificationSession {
             eventContext: coreDataStack.eventContext,
             applicationStatus: applicationStatusDirectory,
             pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
-            notificationsTracker: notificationsTracker,
-            delegate: nil // TODO: set to self
+            notificationsTracker: notificationsTracker
         )
 
         let requestGeneratorStore = RequestGeneratorStore(strategies: [pushNotificationStrategy])
@@ -165,7 +163,8 @@ public class NotificationSession {
             saveNotificationPersistence: saveNotificationPersistence,
             applicationStatusDirectory: applicationStatusDirectory,
             operationLoop: operationLoop,
-            accountIdentifier: accountIdentifier
+            accountIdentifier: accountIdentifier,
+            pushNotificationStrategy: pushNotificationStrategy
         )
     }
 
@@ -176,7 +175,8 @@ public class NotificationSession {
         saveNotificationPersistence: ContextDidSaveNotificationPersistence,
         applicationStatusDirectory: ApplicationStatusDirectory,
         operationLoop: RequestGeneratingOperationLoop,
-        accountIdentifier: UUID
+        accountIdentifier: UUID,
+        pushNotificationStrategy: PushNotificationStrategy
     ) throws {
         self.coreDataStack = coreDataStack
         self.transportSession = transportSession
@@ -184,6 +184,7 @@ public class NotificationSession {
         self.applicationStatusDirectory = applicationStatusDirectory
         self.operationLoop = operationLoop
         self.accountIdentifier = accountIdentifier
+        pushNotificationStrategy.delegate = self
     }
 
     deinit {

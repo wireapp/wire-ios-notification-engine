@@ -47,8 +47,7 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
         eventContext: NSManagedObjectContext,
         applicationStatus: ApplicationStatus,
         pushNotificationStatus: PushNotificationStatus,
-        notificationsTracker: NotificationsTracker?,
-        delegate: PushNotificationStrategyDelegate?
+        notificationsTracker: NotificationsTracker?
     ) {
         super.init(
             withManagedObjectContext: managedObjectContext,
@@ -63,7 +62,6 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
 
         self.eventProcessor = self
         self.pushNotificationStatus = pushNotificationStatus
-        self.delegate = delegate
         self.moc = managedObjectContext
         self.eventDecoder = EventDecoder(eventMOC: eventContext, syncMOC: managedObjectContext)
     }
