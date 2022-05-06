@@ -377,7 +377,7 @@ extension NotificationSession {
             return nil
         }
 
-        let conversation = ZMConversation.fetch(with: conversationID, in: context)
+        let conversation = ZMConversation.fetch(with: conversationID, domain: event.conversationDomain, in: context)
 
         if let callEventContent = CallEventContent(from: event) {
             let currentTimestamp = Date().addingTimeInterval(context.serverTimeDelta)
