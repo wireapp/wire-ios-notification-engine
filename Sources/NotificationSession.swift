@@ -276,6 +276,11 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
         // The conversation is needed to report where the call is taking place.
         guard let conversation = conversation(in: event) else {
+                  return false
+              }
+
+        // The call event can be processed if the conversation is not muted
+        if conversation.mutedMessageTypesIncludingAvailability != .none {
             return false
         }
 
