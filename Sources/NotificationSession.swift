@@ -284,7 +284,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             return false
         }
 
-        // CallKit may not be available because due to lack of permissions or it
+        // CallKit may not be available due to lack of permissions or because it
         // is disabled by the user.
         guard VoIPPushHelper.isCallKitAvailable else {
             return false
