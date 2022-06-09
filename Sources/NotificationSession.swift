@@ -52,6 +52,7 @@ public class NotificationSession {
 
     private let saveNotificationPersistence: ContextDidSaveNotificationPersistence
 
+    private let eventsFetcher : EventsFetcher
     private var contextSaveObserverToken: NSObjectProtocol?
     private let transportSession: ZMTransportSession
     private let coreDataStack: CoreDataStack
@@ -79,7 +80,8 @@ public class NotificationSession {
         applicationGroupIdentifier: String,
         accountIdentifier: UUID,
         environment: BackendEnvironmentProvider,
-        analytics: AnalyticsType?
+        analytics: AnalyticsType?,
+        eventsFetcher: EventsFetcher? = nil
     ) throws {
         let sharedContainerURL = FileManager.sharedContainerDirectory(for: applicationGroupIdentifier)
         let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
@@ -117,7 +119,8 @@ public class NotificationSession {
             cachesDirectory: FileManager.default.cachesURLForAccount(with: accountIdentifier, in: sharedContainerURL),
             accountContainer: CoreDataStack.accountDataFolder(accountIdentifier: accountIdentifier, applicationContainer: sharedContainerURL),
             analytics: analytics,
-            accountIdentifier: accountIdentifier
+            accountIdentifier: accountIdentifier,
+            eventsFetcher: eventsFetcher
         )
     }
 
@@ -127,7 +130,8 @@ public class NotificationSession {
         cachesDirectory: URL,
         accountContainer: URL,
         analytics: AnalyticsType?,
-        accountIdentifier: UUID
+        accountIdentifier: UUID,
+        eventsFetcher: EventsFetcher?
     ) throws {
         let applicationStatusDirectory = ApplicationStatusDirectory(
             syncContext: coreDataStack.syncContext,
@@ -164,7 +168,8 @@ public class NotificationSession {
             applicationStatusDirectory: applicationStatusDirectory,
             operationLoop: operationLoop,
             accountIdentifier: accountIdentifier,
-            pushNotificationStrategy: pushNotificationStrategy
+            pushNotificationStrategy: pushNotificationStrategy,
+            eventsFetcher: eventsFetcher
         )
     }
 
@@ -176,7 +181,8 @@ public class NotificationSession {
         applicationStatusDirectory: ApplicationStatusDirectory,
         operationLoop: RequestGeneratingOperationLoop,
         accountIdentifier: UUID,
-        pushNotificationStrategy: PushNotificationStrategy
+        pushNotificationStrategy: PushNotificationStrategy,
+        eventsFetcher: EventsFetcher?
     ) throws {
         self.coreDataStack = coreDataStack
         self.transportSession = transportSession
@@ -184,6 +190,7 @@ public class NotificationSession {
         self.applicationStatusDirectory = applicationStatusDirectory
         self.operationLoop = operationLoop
         self.accountIdentifier = accountIdentifier
+        self.eventsFetcher =  eventsFetcher ?? applicationStatusDirectory.pushNotificationStatus
         pushNotificationStrategy.delegate = self
     }
 
@@ -212,7 +219,7 @@ public class NotificationSession {
             let completionHandler = {
                 completion(true)
             }
-            
+
             self.fetchEvents(fromPushChannelPayload: payload, completionHandler: completionHandler)
         }
     }
@@ -223,7 +230,7 @@ public class NotificationSession {
             return
         }
 
-        applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: completionHandler)
+        eventsFetcher.fetchEventWithId(eventId: nonce, completionHandler: completionHandler)
     }
 
     private func messageNonce(fromPushChannelData payload: [AnyHashable: Any]) -> UUID? {
