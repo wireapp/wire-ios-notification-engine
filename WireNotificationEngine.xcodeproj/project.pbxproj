@@ -33,6 +33,7 @@
 		D31430C428755F1D0084F51C /* OCMock.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06894D4A276B26D600DA4E33 /* OCMock.xcframework */; };
 		D380385528520186000587D4 /* NotificationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069712952497C1BC00C32169 /* NotificationSession.swift */; };
 		D390CD052851DEEC001F6433 /* EventsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D390CD02285098E8001F6433 /* EventsFetcher.swift */; };
+		D39D12D5287D567800CD2931 /* NotificationStrategyTestBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39D12D4287D567800CD2931 /* NotificationStrategyTestBase.swift */; };
 		EE3245FE28229E8600F2A84A /* ApplicationStatusDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE3245FD28229E8600F2A84A /* ApplicationStatusDirectory.swift */; };
 		EE32460028229F6B00F2A84A /* ClientRegistrationStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE3245FF28229F6B00F2A84A /* ClientRegistrationStatus.swift */; };
 		EE32460228229FDF00F2A84A /* AuthenticationStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE32460128229FDF00F2A84A /* AuthenticationStatus.swift */; };
@@ -93,6 +94,7 @@
 		D390CCFD284F49FC001F6433 /* PushNotificationStrategyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationStrategyTests.swift; sourceTree = "<group>"; };
 		D390CCFF284F58BB001F6433 /* NotificationSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSessionTests.swift; sourceTree = "<group>"; };
 		D390CD02285098E8001F6433 /* EventsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsFetcher.swift; sourceTree = "<group>"; };
+		D39D12D4287D567800CD2931 /* NotificationStrategyTestBase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationStrategyTestBase.swift; sourceTree = "<group>"; };
 		EE3245FD28229E8600F2A84A /* ApplicationStatusDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationStatusDirectory.swift; sourceTree = "<group>"; };
 		EE3245FF28229F6B00F2A84A /* ClientRegistrationStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientRegistrationStatus.swift; sourceTree = "<group>"; };
 		EE32460128229FDF00F2A84A /* AuthenticationStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationStatus.swift; sourceTree = "<group>"; };
@@ -266,6 +268,7 @@
 			children = (
 				D390CCFD284F49FC001F6433 /* PushNotificationStrategyTests.swift */,
 				D390CCFF284F58BB001F6433 /* NotificationSessionTests.swift */,
+				D39D12D4287D567800CD2931 /* NotificationStrategyTestBase.swift */,
 			);
 			path = WireNotificationEngineTests;
 			sourceTree = "<group>";
@@ -406,6 +409,7 @@
 			files = (
 				D31430BF28755D340084F51C /* PushNotificationStrategyTests.swift in Sources */,
 				D31430C028755D340084F51C /* NotificationSessionTests.swift in Sources */,
+				D39D12D5287D567800CD2931 /* NotificationStrategyTestBase.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

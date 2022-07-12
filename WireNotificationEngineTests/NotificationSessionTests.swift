@@ -9,7 +9,6 @@
 import XCTest
 import WireTesting
 import WireDataModel
-import WireMockTransport
 @testable import WireNotificationEngine
 
 class FakeAuthenticationStatus: AuthenticationStatusProvider {
@@ -17,10 +16,8 @@ class FakeAuthenticationStatus: AuthenticationStatusProvider {
 }
 
 
-class NotificationSessionTests: XCTestCase {
+class NotificationSessionTests: NotificationStrategyTestBase {
 
-    var authenticationStatus: FakeAuthenticationStatus!
-    var accountIdentifier: UUID!
     var notificationSession: NotificationSession!
     var eventsFetcher: EventsFetcherMock!
 
@@ -28,40 +25,6 @@ class NotificationSessionTests: XCTestCase {
         super.setUp()
 
         eventsFetcher = EventsFetcherMock()
-        accountIdentifier = UUID(uuidString: "123e4567-e89b-12d3-a456-426614174001")!
-        authenticationStatus = FakeAuthenticationStatus()
-        let url = try! FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-
-        let account = Account(userName: "Additional Account", userIdentifier: UUID(uuidString: "123e4567-e89b-12d3-a456-426614174001")!)
-        let sharedContainerURL = FileManager.sharedContainerDirectory(for:  "123")
-        let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
-        accountManager.addOrUpdate(account)
-
-        let coreDataStack: CoreDataStack = CoreDataStack(account: account,
-                                                         applicationContainer: url,
-                                                         inMemoryStore: true,
-                                                         dispatchGroup: nil)
-
-        let mockTransport = MockTransportSession(dispatchGroup: nil)
-        let transportSession = mockTransport.mockedTransportSession()
-
-        let registrationStatus = ClientRegistrationStatus(context: coreDataStack.syncContext)
-
-        let applicationStatusDirectory = ApplicationStatusDirectory(
-            managedObjectContext: coreDataStack.syncContext,
-            transportSession: transportSession,
-            authenticationStatus: authenticationStatus,
-            clientRegistrationStatus: registrationStatus,
-            linkPreviewDetector: LinkPreviewDetector()
-        )
-
-        let pushNotificationStrategy = PushNotificationStrategy(
-            withManagedObjectContext: coreDataStack.syncContext,
-            eventContext: coreDataStack.eventContext,
-            applicationStatus: applicationStatusDirectory,
-            pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
-            notificationsTracker: nil
-        )
         let operationLoop = RequestGeneratingOperationLoop(
             userContext: coreDataStack.viewContext,
             syncContext: coreDataStack.syncContext,
@@ -69,6 +32,7 @@ class NotificationSessionTests: XCTestCase {
             requestGeneratorStore: RequestGeneratorStore(strategies: [pushNotificationStrategy]),
             transportSession: transportSession
         )
+        let sharedContainerURL = FileManager.sharedContainerDirectory(for:  "123")
         let accountContainer =  CoreDataStack.accountDataFolder(accountIdentifier: accountIdentifier, applicationContainer: sharedContainerURL)
         let saveNotificationPersistence = ContextDidSaveNotificationPersistence(accountContainer: accountContainer)
 
@@ -76,7 +40,7 @@ class NotificationSessionTests: XCTestCase {
         do {
             notificationSession = try NotificationSession(coreDataStack: coreDataStack,
                                                           transportSession: transportSession,
-                                                          cachesDirectory: url,
+                                                          cachesDirectory: coreDataStack.applicationContainer,
                                                           saveNotificationPersistence: saveNotificationPersistence,
                                                           applicationStatusDirectory: applicationStatusDirectory,
                                                           operationLoop: operationLoop,

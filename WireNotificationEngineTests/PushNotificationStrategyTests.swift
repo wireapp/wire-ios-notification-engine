@@ -1,87 +1,81 @@
-////
-////  PushNotificationStrategyTests.swift
-////  WireNotificationEngineTests
-////
-////  Created by Marcin Ratajczak on 07/06/2022.
-////  Copyright © 2022 Wire. All rights reserved.
-////
 //
-//import XCTest
-//import WireDataModel
-//import WireTesting
-//import WireMockTransport
-//@testable import WireNotificationEngine
+//  PushNotificationStrategyTests.swift
+//  WireNotificationEngineTests
 //
-//class PushNotificationStrategyTests: XCTestCase {
+//  Created by Marcin Ratajczak on 07/06/2022.
+//  Copyright © 2022 Wire. All rights reserved.
 //
-//    var authenticationStatus: FakeAuthenticationStatus!
-//    var accountIdentifier: UUID!
-//    var notificationSession: NotificationSession!
-//    var eventsFetcher: EventsFetcherMock!
-//
-//    override func setUp() {
-//        super.setUp()
-//
-//        eventsFetcher = EventsFetcherMock()
-//        accountIdentifier = UUID(uuidString: "123e4567-e89b-12d3-a456-426614174001")!
-//        authenticationStatus = FakeAuthenticationStatus()
-//        let url = try! FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-//        //        let account = Account(userName: "", userIdentifier: accountIdentifier)
-//
-//        let account = Account(userName: "Additional Account", userIdentifier: UUID(uuidString: "123e4567-e89b-12d3-a456-426614174001")!)
-//        let sharedContainerURL = FileManager.sharedContainerDirectory(for:  "123")
-//        let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
-//        accountManager.addOrUpdate(account)
-//
-//        let coreDataStack: CoreDataStack = CoreDataStack(account: account,
-//                                                         applicationContainer: url,
-//                                                         inMemoryStore: true,
-//                                                         dispatchGroup: nil)
-//        let mockTransport = MockTransportSession(dispatchGroup: nil)
-//        let transportSession = mockTransport.mockedTransportSession()
-//
-//        let registrationStatus = ClientRegistrationStatus(context: coreDataStack.syncContext)
-//
-//        let applicationStatusDirectory = ApplicationStatusDirectory(
-//            managedObjectContext: coreDataStack.syncContext,
-//            transportSession: transportSession,
-//            authenticationStatus: authenticationStatus,
-//            clientRegistrationStatus: registrationStatus,
-//            linkPreviewDetector: LinkPreviewDetector()
-//        )
-//
-//        let pushNotificationStrategy = PushNotificationStrategy(
-//            withManagedObjectContext: coreDataStack.syncContext,
-//            eventContext: coreDataStack.eventContext,
-//            applicationStatus: applicationStatusDirectory,
-//            pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
-//            notificationsTracker: nil
-//        )
-//        let operationLoop = RequestGeneratingOperationLoop(
-//            userContext: coreDataStack.viewContext,
-//            syncContext: coreDataStack.syncContext,
-//            callBackQueue: .main,
-//            requestGeneratorStore: RequestGeneratorStore(strategies: [pushNotificationStrategy]),
-//            transportSession: transportSession
-//        )
-//        let accountContainer =  CoreDataStack.accountDataFolder(accountIdentifier: accountIdentifier, applicationContainer: sharedContainerURL)
-//        let saveNotificationPersistence = ContextDidSaveNotificationPersistence(accountContainer: accountContainer)
-//
-//
-//        do {
-//            notificationSession = try NotificationSession(coreDataStack: coreDataStack,
-//                                                          transportSession: transportSession,
-//                                                          cachesDirectory: url,
-//                                                          saveNotificationPersistence: saveNotificationPersistence,
-//                                                          applicationStatusDirectory: applicationStatusDirectory,
-//                                                          operationLoop: operationLoop,
-//                                                          accountIdentifier: accountIdentifier,
-//                                                          pushNotificationStrategy: pushNotificationStrategy,
-//                                                          eventsFetcher: eventsFetcher)
-//        } catch {
-//            XCTFail()
-//        }
-//    }
-//
-////    func test
-//}
+
+import XCTest
+import WireTesting
+@testable import WireNotificationEngine
+
+
+import WireRequestStrategy
+
+class PushNotificationStrategyTests: NotificationStrategyTestBase {
+
+    override func setUp() {
+        super.setUp()
+
+        coreDataStack.syncContext.performGroupedBlockAndWait {
+            let selfUser = ZMUser.selfUser(in: self.coreDataStack.syncContext)
+            selfUser.remoteIdentifier = self.accountIdentifier
+            let selfConversation = ZMConversation.insertNewObject(in: self.coreDataStack.syncContext)
+            selfConversation.remoteIdentifier = self.accountIdentifier
+            selfConversation.conversationType = .self
+        }
+    }
+
+    func testStoreUpdateEventsCallsDelegate() {
+        let notificationStrategyDelegate = NotificationStrategyDelegateMock()
+        pushNotificationStrategy.delegate = notificationStrategyDelegate
+        let uuid = UUID()
+        let event = eventStreamEvent(uuid: uuid)
+        pushNotificationStrategy.storeUpdateEvents([event], ignoreBuffer: true)
+        XCTAssertEqual(notificationStrategyDelegate.fetchedEvents?.count, 1)
+        XCTAssertEqual(notificationStrategyDelegate.fetchedEvents?.first?.uuid, uuid)
+    }
+
+    func testFetchEventsCallsDelegate() {
+        let notificationStrategyDelegate = NotificationStrategyDelegateMock()
+        pushNotificationStrategy.delegate = notificationStrategyDelegate
+        let uuid = UUID()
+        let events = [eventStreamEvent(uuid: uuid)]
+        pushNotificationStrategy.fetchedEvents(events, hasMoreToFetch: false)
+        XCTAssertTrue(notificationStrategyDelegate.didFinishFetchingEvents)
+    }
+
+
+}
+
+extension PushNotificationStrategyTests {
+
+    func eventStreamEvent(uuid: UUID? = nil) -> ZMUpdateEvent {
+        let conversation = ZMConversation.insertNewObject(in: syncContext)
+        let user = ZMUser.insertNewObject(in: conversation.managedObjectContext!)
+        user.remoteIdentifier = UUID.create()
+        let payload = ["conversation": conversation.remoteIdentifier?.transportString() ?? "",
+                       "data": ["foo": "bar"],
+                       "from": user.remoteIdentifier.transportString(),
+                       "time": "",
+                       "type": "conversation.message-add"
+        ] as ZMTransportData
+        return ZMUpdateEvent(fromEventStreamPayload: payload, uuid: uuid ?? UUID.create())!
+    }
+}
+
+class NotificationStrategyDelegateMock: PushNotificationStrategyDelegate {
+    var fetchedEvents: [ZMUpdateEvent]? = nil
+    var didFinishFetchingEvents = false
+
+    func pushNotificationStrategy(_ strategy: PushNotificationStrategy, didFetchEvents events: [ZMUpdateEvent]) {
+        fetchedEvents = events
+    }
+
+    func pushNotificationStrategyDidFinishFetchingEvents(_ strategy: PushNotificationStrategy) {
+        didFinishFetchingEvents = true
+    }
+
+
+}
