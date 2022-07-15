@@ -109,7 +109,6 @@ public class NotificationSession: NSObject {
         try self.init(
             coreDataStack: coreDataStack,
             transportSession: transportSession,
-            cachesDirectory: FileManager.default.cachesURLForAccount(with: accountIdentifier, in: sharedContainerURL),
             accountContainer: CoreDataStack.accountDataFolder(accountIdentifier: accountIdentifier, applicationContainer: sharedContainerURL),
             accountIdentifier: accountIdentifier
         )
@@ -118,7 +117,6 @@ public class NotificationSession: NSObject {
     convenience init(
         coreDataStack: CoreDataStack,
         transportSession: ZMTransportSession,
-        cachesDirectory: URL,
         accountContainer: URL,
         accountIdentifier: UUID
     ) throws {
@@ -134,11 +132,10 @@ public class NotificationSession: NSObject {
             pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
             notificationsTracker: nil
         )
-        
+
         try self.init(
             coreDataStack: coreDataStack,
             transportSession: transportSession,
-            cachesDirectory: cachesDirectory,
             applicationStatusDirectory: applicationStatusDirectory,
             accountIdentifier: accountIdentifier,
             pushNotificationStrategy: pushNotificationStrategy
@@ -148,7 +145,6 @@ public class NotificationSession: NSObject {
     init(
         coreDataStack: CoreDataStack,
         transportSession: ZMTransportSession,
-        cachesDirectory: URL,
         applicationStatusDirectory: ApplicationStatusDirectory,
         accountIdentifier: UUID,
         pushNotificationStrategy: PushNotificationStrategy
