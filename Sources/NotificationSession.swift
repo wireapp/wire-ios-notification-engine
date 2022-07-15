@@ -105,20 +105,6 @@ public class NotificationSession: NSObject {
             applicationVersion: "1.0.0"
         )
 
-        try self.init(
-            coreDataStack: coreDataStack,
-            transportSession: transportSession,
-            accountContainer: CoreDataStack.accountDataFolder(accountIdentifier: accountIdentifier, applicationContainer: sharedContainerURL),
-            accountIdentifier: accountIdentifier
-        )
-    }
-
-    convenience init(
-        coreDataStack: CoreDataStack,
-        transportSession: ZMTransportSession,
-        accountContainer: URL,
-        accountIdentifier: UUID
-    ) throws {
         let applicationStatusDirectory = ApplicationStatusDirectory(
             syncContext: coreDataStack.syncContext,
             transportSession: transportSession
