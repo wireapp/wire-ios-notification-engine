@@ -29,7 +29,6 @@
 		06894D85276B27E100DA4E33 /* WireNotificationEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 067ECB3A2487A93D00701956 /* WireNotificationEngine.framework */; };
 		06894D89276B282B00DA4E33 /* WireMockTransport.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06894D3A276B26D500DA4E33 /* WireMockTransport.xcframework */; };
 		06894D8C276B282F00DA4E33 /* OCMock.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06894D4A276B26D600DA4E33 /* OCMock.xcframework */; };
-		069712912497B96E00C32169 /* OperationLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06394AA12497B24600380494 /* OperationLoop.swift */; };
 		069712972497C1BF00C32169 /* NotificationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069712952497C1BC00C32169 /* NotificationSession.swift */; };
 		069712992497C2B900C32169 /* AuthenticationStatusProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069712982497C2B900C32169 /* AuthenticationStatusProvider.swift */; };
 		0697129D2497CAC200C32169 /* PushNotificationStrategy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0697129C2497CAC200C32169 /* PushNotificationStrategy.swift */; };
@@ -57,7 +56,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		06394AA12497B24600380494 /* OperationLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperationLoop.swift; sourceTree = "<group>"; };
 		064496892487BFB200576799 /* Cartfile.resolved */ = {isa = PBXFileReference; lastKnownFileType = text; path = Cartfile.resolved; sourceTree = "<group>"; };
 		0644968A2487BFB200576799 /* Cartfile */ = {isa = PBXFileReference; lastKnownFileType = text; path = Cartfile; sourceTree = "<group>"; };
 		0644968B2487BFB200576799 /* Cartfile.private */ = {isa = PBXFileReference; lastKnownFileType = text; path = Cartfile.private; sourceTree = "<group>"; };
@@ -237,7 +235,6 @@
 		0697129A2497CA8F00C32169 /* Synchronization */ = {
 			isa = PBXGroup;
 			children = (
-				06394AA12497B24600380494 /* OperationLoop.swift */,
 				0697129B2497CA9A00C32169 /* Strategies */,
 			);
 			path = Synchronization;
@@ -438,7 +435,6 @@
 				067ECB602487ABF700701956 /* AppDelegate.swift in Sources */,
 				EE32460228229FDF00F2A84A /* AuthenticationStatus.swift in Sources */,
 				EE32460028229F6B00F2A84A /* ClientRegistrationStatus.swift in Sources */,
-				069712912497B96E00C32169 /* OperationLoop.swift in Sources */,
 				0697129D2497CAC200C32169 /* PushNotificationStrategy.swift in Sources */,
 				069712992497C2B900C32169 /* AuthenticationStatusProvider.swift in Sources */,
 				069712972497C1BF00C32169 /* NotificationSession.swift in Sources */,

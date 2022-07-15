@@ -33,7 +33,7 @@ public protocol NotificationSessionDelegate: AnyObject {
 /// the lifetime of the notification extension, and hold on to that session
 /// for the entire lifetime.
 ///
-public class NotificationSession {
+public class NotificationSession: NSObject {
 
     /// The failure reason of a `NotificationSession` initialization
     /// - noAccount: Account doesn't exist
@@ -55,7 +55,7 @@ public class NotificationSession {
     private var contextSaveObserverToken: NSObjectProtocol?
     private let transportSession: ZMTransportSession
     private let coreDataStack: CoreDataStack
-    private let operationLoop: RequestGeneratingOperationLoop
+    private let requestStrategy: PushNotificationStrategy
 
     public let accountIdentifier: UUID
 
@@ -144,16 +144,6 @@ public class NotificationSession {
             notificationsTracker: notificationsTracker
         )
 
-        let requestGeneratorStore = RequestGeneratorStore(strategies: [pushNotificationStrategy])
-        
-        let operationLoop = RequestGeneratingOperationLoop(
-            userContext: coreDataStack.viewContext,
-            syncContext: coreDataStack.syncContext,
-            callBackQueue: .main,
-            requestGeneratorStore: requestGeneratorStore,
-            transportSession: transportSession
-        )
-        
         let saveNotificationPersistence = ContextDidSaveNotificationPersistence(accountContainer: accountContainer)
         
         try self.init(
@@ -162,7 +152,6 @@ public class NotificationSession {
             cachesDirectory: cachesDirectory,
             saveNotificationPersistence: saveNotificationPersistence,
             applicationStatusDirectory: applicationStatusDirectory,
-            operationLoop: operationLoop,
             accountIdentifier: accountIdentifier,
             pushNotificationStrategy: pushNotificationStrategy
         )
@@ -174,7 +163,6 @@ public class NotificationSession {
         cachesDirectory: URL,
         saveNotificationPersistence: ContextDidSaveNotificationPersistence,
         applicationStatusDirectory: ApplicationStatusDirectory,
-        operationLoop: RequestGeneratingOperationLoop,
         accountIdentifier: UUID,
         pushNotificationStrategy: PushNotificationStrategy
     ) throws {
@@ -182,9 +170,13 @@ public class NotificationSession {
         self.transportSession = transportSession
         self.saveNotificationPersistence = saveNotificationPersistence
         self.applicationStatusDirectory = applicationStatusDirectory
-        self.operationLoop = operationLoop
         self.accountIdentifier = accountIdentifier
+        self.requestStrategy = pushNotificationStrategy
+
+        super.init()
+
         pushNotificationStrategy.delegate = self
+        RequestAvailableNotification.addObserver(self)
     }
 
     deinit {
@@ -362,6 +354,26 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         let unreadCount = Int(ZMConversation.unreadConversationCount(in: context))
         delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
         localNotifications.removeAll()
+    }
+
+}
+
+extension NotificationSession: RequestAvailableObserver {
+
+    public func newRequestsAvailable() {
+        var result: ZMTransportEnqueueResult
+
+        repeat {
+            result = transportSession.attemptToEnqueueSyncRequest { [weak self] in
+                return self?.nextRequest()
+            }
+
+        } while result.didGenerateNonNullRequest && result.didHaveLessRequestThanMax
+    }
+
+    private func nextRequest() -> ZMTransportRequest? {
+        guard let apiVersion = APIVersion.current else { return nil }
+        return requestStrategy.nextRequest(for: apiVersion)
     }
 
 }
