@@ -48,10 +48,6 @@ public class NotificationSession: NSObject {
 
     private let applicationStatusDirectory : ApplicationStatusDirectory
 
-    /// The list to which save notifications of the UI moc are appended and persisted.
-
-    private let saveNotificationPersistence: ContextDidSaveNotificationPersistence
-
     private var contextSaveObserverToken: NSObjectProtocol?
     private let transportSession: ZMTransportSession
     private let coreDataStack: CoreDataStack
@@ -138,14 +134,11 @@ public class NotificationSession: NSObject {
             pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
             notificationsTracker: nil
         )
-
-        let saveNotificationPersistence = ContextDidSaveNotificationPersistence(accountContainer: accountContainer)
         
         try self.init(
             coreDataStack: coreDataStack,
             transportSession: transportSession,
             cachesDirectory: cachesDirectory,
-            saveNotificationPersistence: saveNotificationPersistence,
             applicationStatusDirectory: applicationStatusDirectory,
             accountIdentifier: accountIdentifier,
             pushNotificationStrategy: pushNotificationStrategy
@@ -156,14 +149,12 @@ public class NotificationSession: NSObject {
         coreDataStack: CoreDataStack,
         transportSession: ZMTransportSession,
         cachesDirectory: URL,
-        saveNotificationPersistence: ContextDidSaveNotificationPersistence,
         applicationStatusDirectory: ApplicationStatusDirectory,
         accountIdentifier: UUID,
         pushNotificationStrategy: PushNotificationStrategy
     ) throws {
         self.coreDataStack = coreDataStack
         self.transportSession = transportSession
-        self.saveNotificationPersistence = saveNotificationPersistence
         self.applicationStatusDirectory = applicationStatusDirectory
         self.accountIdentifier = accountIdentifier
         self.requestStrategy = pushNotificationStrategy
