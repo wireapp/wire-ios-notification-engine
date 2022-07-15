@@ -48,7 +48,6 @@ public class NotificationSession: NSObject {
 
     private let applicationStatusDirectory : ApplicationStatusDirectory
 
-    private var contextSaveObserverToken: NSObjectProtocol?
     private let transportSession: ZMTransportSession
     private let coreDataStack: CoreDataStack
     private let requestStrategy: PushNotificationStrategy
@@ -162,11 +161,6 @@ public class NotificationSession: NSObject {
     }
 
     deinit {
-        if let token = contextSaveObserverToken {
-            NotificationCenter.default.removeObserver(token)
-            contextSaveObserverToken = nil
-        }
-
         transportSession.reachability.tearDown()
         transportSession.tearDown()
     }
