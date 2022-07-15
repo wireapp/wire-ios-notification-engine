@@ -78,8 +78,7 @@ public class NotificationSession: NSObject {
     public convenience init(
         applicationGroupIdentifier: String,
         accountIdentifier: UUID,
-        environment: BackendEnvironmentProvider,
-        analytics: AnalyticsType?
+        environment: BackendEnvironmentProvider
     ) throws {
         let sharedContainerURL = FileManager.sharedContainerDirectory(for: applicationGroupIdentifier)
         let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
@@ -116,7 +115,6 @@ public class NotificationSession: NSObject {
             transportSession: transportSession,
             cachesDirectory: FileManager.default.cachesURLForAccount(with: accountIdentifier, in: sharedContainerURL),
             accountContainer: CoreDataStack.accountDataFolder(accountIdentifier: accountIdentifier, applicationContainer: sharedContainerURL),
-            analytics: analytics,
             accountIdentifier: accountIdentifier
         )
     }
@@ -126,7 +124,6 @@ public class NotificationSession: NSObject {
         transportSession: ZMTransportSession,
         cachesDirectory: URL,
         accountContainer: URL,
-        analytics: AnalyticsType?,
         accountIdentifier: UUID
     ) throws {
         let applicationStatusDirectory = ApplicationStatusDirectory(
@@ -134,14 +131,12 @@ public class NotificationSession: NSObject {
             transportSession: transportSession
         )
 
-        let notificationsTracker = (analytics != nil) ? NotificationsTracker(analytics: analytics!) : nil
-
         let pushNotificationStrategy = PushNotificationStrategy(
             withManagedObjectContext: coreDataStack.syncContext,
             eventContext: coreDataStack.eventContext,
             applicationStatus: applicationStatusDirectory,
             pushNotificationStatus: applicationStatusDirectory.pushNotificationStatus,
-            notificationsTracker: notificationsTracker
+            notificationsTracker: nil
         )
 
         let saveNotificationPersistence = ContextDidSaveNotificationPersistence(accountContainer: accountContainer)
