@@ -20,12 +20,6 @@
 import Foundation
 import WireRequestStrategy
 
-public protocol NotificationSessionDelegate: AnyObject {
-
-    func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?, unreadConversationCount: Int)
-    func reportCallEvent(_ event: ZMUpdateEvent, currentTimestamp: TimeInterval)
-
-}
 
 /// A syncing layer for the notification processing
 /// - note: this is the entry point of this framework. Users of
@@ -33,7 +27,7 @@ public protocol NotificationSessionDelegate: AnyObject {
 /// the lifetime of the notification extension, and hold on to that session
 /// for the entire lifetime.
 ///
-public class NotificationSession {
+public class NotificationSession: NotificationSessionProtocol {
 
     /// The failure reason of a `NotificationSession` initialization
     /// - noAccount: Account doesn't exist
@@ -75,16 +69,15 @@ public class NotificationSession {
     /// - throws: `InitializationError.noAccount` in case the account does not exist
     /// - returns: The initialized session object if no error is thrown
     
-    public convenience init(
-        applicationGroupIdentifier: String,
-        accountIdentifier: UUID,
-        environment: BackendEnvironmentProvider,
-        analytics: AnalyticsType?
+    required public convenience init(
+        accountID: UUID,
+        appGroupID: String,
+        environment: BackendEnvironmentProvider
     ) throws {
-        let sharedContainerURL = FileManager.sharedContainerDirectory(for: applicationGroupIdentifier)
+        let sharedContainerURL = FileManager.sharedContainerDirectory(for: appGroupID)
         let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
 
-        guard let account = accountManager.account(with: accountIdentifier) else {
+        guard let account = accountManager.account(with: accountID) else {
             throw InitializationError.noAccount
         }
 
@@ -97,7 +90,7 @@ public class NotificationSession {
             // TODO jacob error handling
         }
 
-        let cookieStorage = ZMPersistentCookieStorage(forServerName: environment.backendURL.host!, userIdentifier: accountIdentifier)
+        let cookieStorage = ZMPersistentCookieStorage(forServerName: environment.backendURL.host!, userIdentifier: accountID)
         let reachabilityGroup = ZMSDispatchGroup(dispatchGroup: DispatchGroup(), label: "Sharing session reachability")!
         let serverNames = [environment.backendURL, environment.backendWSURL].compactMap { $0.host }
         let reachability = ZMReachability(serverNames: serverNames, group: reachabilityGroup)
@@ -107,17 +100,17 @@ public class NotificationSession {
             cookieStorage: cookieStorage,
             reachability: reachability,
             initialAccessToken: nil,
-            applicationGroupIdentifier: applicationGroupIdentifier,
+            applicationGroupIdentifier: appGroupID,
             applicationVersion: "1.0.0"
         )
 
         try self.init(
             coreDataStack: coreDataStack,
             transportSession: transportSession,
-            cachesDirectory: FileManager.default.cachesURLForAccount(with: accountIdentifier, in: sharedContainerURL),
-            accountContainer: CoreDataStack.accountDataFolder(accountIdentifier: accountIdentifier, applicationContainer: sharedContainerURL),
-            analytics: analytics,
-            accountIdentifier: accountIdentifier
+            cachesDirectory: FileManager.default.cachesURLForAccount(with: accountID, in: sharedContainerURL),
+            accountContainer: CoreDataStack.accountDataFolder(accountIdentifier: accountID, applicationContainer: sharedContainerURL),
+            analytics: nil,
+            accountIdentifier:  accountID
         )
     }
 
@@ -199,31 +192,25 @@ public class NotificationSession {
 
     // MARK: - Methods
     
-    public func processPushNotification(with payload: [AnyHashable: Any], completion: @escaping (Bool) -> Void) {
+    public func processPushPayload(_ payload: [AnyHashable: Any]) {
         Logging.network.debug("Received push notification with payload: \(payload)")
 
-        coreDataStack.syncContext.performGroupedBlock {
+        coreDataStack.syncContext.performGroupedBlock { [weak self] in
+            guard let `self` = self else { return }
+
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
                 Logging.push.safePublic("Not displaying notification because app is not authenticated")
-                completion(false)
+                self.delegate?.notificationSessionDetectedUnauthenticatedAccount()
                 return
             }
             
-            let completionHandler = {
-                completion(true)
-            }
-            
-            self.fetchEvents(fromPushChannelPayload: payload, completionHandler: completionHandler)
-        }
-    }
-    
-    func fetchEvents(fromPushChannelPayload payload: [AnyHashable: Any], completionHandler: @escaping () -> Void) {
-        guard let nonce = self.messageNonce(fromPushChannelData: payload) else {
-            completionHandler()
-            return
-        }
 
-        applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: completionHandler)
+            guard let nonce = self.messageNonce(fromPushChannelData: payload) else {
+                return
+            }
+
+            self.applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: {})
+        }
     }
 
     private func messageNonce(fromPushChannelData payload: [AnyHashable: Any]) -> UUID? {
