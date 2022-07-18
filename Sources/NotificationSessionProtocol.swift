@@ -35,7 +35,7 @@ public protocol NotificationSessionProtocol {
 
 public protocol NotificationSessionDelegate: AnyObject {
 
-    func notificationSessionDetectedUnauthenticatedAccount()
+    func notificationSessionFailedwithError(error: NotificationSessionError)
 
     func notificationSessionDidGenerateNotification(
         _ notification: ZMLocalNotification?,
@@ -46,5 +46,13 @@ public protocol NotificationSessionDelegate: AnyObject {
         _ event: ZMUpdateEvent,
         currentTimestamp: TimeInterval
     )
+
+}
+
+public enum NotificationSessionError: Error {
+
+    case unknownAccount
+    case accountNotAuthenticated
+    case noEventID
 
 }

@@ -20,7 +20,6 @@
 import Foundation
 import WireRequestStrategy
 
-
 /// A syncing layer for the notification processing
 /// - note: this is the entry point of this framework. Users of
 /// the framework should create an instance as soon as possible in
@@ -28,13 +27,6 @@ import WireRequestStrategy
 /// for the entire lifetime.
 ///
 public class NotificationSession: NotificationSessionProtocol {
-
-    /// The failure reason of a `NotificationSession` initialization
-    /// - noAccount: Account doesn't exist
-
-    public enum InitializationError: Error {
-        case noAccount
-    }
 
     // MARK: - Properties
 
@@ -78,7 +70,7 @@ public class NotificationSession: NotificationSessionProtocol {
         let accountManager = AccountManager(sharedDirectory: sharedContainerURL)
 
         guard let account = accountManager.account(with: accountID) else {
-            throw InitializationError.noAccount
+            throw NotificationSessionError.unknownAccount
         }
 
         let coreDataStack = CoreDataStack(
@@ -200,7 +192,7 @@ public class NotificationSession: NotificationSessionProtocol {
 
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
                 Logging.push.safePublic("Not displaying notification because app is not authenticated")
-                self.delegate?.notificationSessionDetectedUnauthenticatedAccount()
+                self.delegate?.notificationSessionFailedwithError(error: .accountNotAuthenticated)
                 return
             }
             
