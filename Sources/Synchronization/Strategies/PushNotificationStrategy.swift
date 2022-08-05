@@ -96,6 +96,9 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
     }
 
     @objc public func storeUpdateEvents(_ updateEvents: [ZMUpdateEvent], ignoreBuffer: Bool) {
+        for event in updateEvents {
+            DebugLogger.addStep(step: "decrypt & store", eventID: event.uuid?.uuidString ?? "!")
+        }
         eventDecoder.decryptAndStoreEvents(updateEvents) { decryptedUpdateEvents in
             self.delegate?.pushNotificationStrategy(self, didFetchEvents: decryptedUpdateEvents)
         }

@@ -1,1 +1,1 @@
-github "wireapp/wire-ios-request-strategy" ~> 271.0.0
+github "wireapp/wire-ios-request-strategy" "push_notification_debugging"

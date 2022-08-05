@@ -65,6 +65,7 @@ public class NotificationSession {
     private var context: NSManagedObjectContext {
         return coreDataStack.syncContext
     }
+    private var currentPushNotificationUUID: UUID?
 
     public weak var delegate: NotificationSessionDelegate?
 
@@ -212,17 +213,20 @@ public class NotificationSession {
             let completionHandler = {
                 completion(true)
             }
-            
+            DebugLogger.addStep(step: "!Not authenticated", eventID: "!")
+
             self.fetchEvents(fromPushChannelPayload: payload, completionHandler: completionHandler)
         }
     }
     
     func fetchEvents(fromPushChannelPayload payload: [AnyHashable: Any], completionHandler: @escaping () -> Void) {
         guard let nonce = self.messageNonce(fromPushChannelData: payload) else {
+            DebugLogger.addStep(step: "!Push Notification without eventID", eventID: "!")
             completionHandler()
             return
         }
-
+        currentPushNotificationUUID = nonce
+        DebugLogger.addStep(step: "fetch events", eventID: nonce.uuidString)
         applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: completionHandler)
     }
 
@@ -248,6 +252,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
     func pushNotificationStrategy(_ strategy: PushNotificationStrategy, didFetchEvents events: [ZMUpdateEvent]) {
         for event in events {
+                DebugLogger.addStep(step: "did fetched events", eventID: event.uuid?.uuidString ?? "!")
             if shouldHandleCallEvent(event) {
                 // Only store the last call event.
                 callEvent =  event
@@ -351,6 +356,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
     }
 
     private func processLocalNotifications() {
+        DebugLogger.addStep(step: "start to process", eventID: currentPushNotificationUUID?.uuidString ?? "!")
         let notification: ZMLocalNotification?
 
         if localNotifications.count > 1 {
@@ -360,6 +366,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         }
 
         let unreadCount = Int(ZMConversation.unreadConversationCount(in: context))
+        DebugLogger.addFinalStep(eventID: currentPushNotificationUUID?.uuidString ?? "Final step without UUID")
         delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
         localNotifications.removeAll()
     }
