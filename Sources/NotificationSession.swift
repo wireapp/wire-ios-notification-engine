@@ -205,6 +205,7 @@ public class NotificationSession {
 
         coreDataStack.syncContext.performGroupedBlock {
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
+                DebugLogger.addStep(step: "!Not authenticated", eventID: "!")
                 Logging.push.safePublic("Not displaying notification because app is not authenticated")
                 completion(false)
                 return
@@ -213,7 +214,7 @@ public class NotificationSession {
             let completionHandler = {
                 completion(true)
             }
-            DebugLogger.addStep(step: "!Not authenticated", eventID: "!")
+            DebugLogger.addStep(step: "!Received push notification with payload", eventID: "!")
 
             self.fetchEvents(fromPushChannelPayload: payload, completionHandler: completionHandler)
         }
