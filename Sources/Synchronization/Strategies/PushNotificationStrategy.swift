@@ -97,7 +97,7 @@ final class PushNotificationStrategy: AbstractRequestStrategy, ZMRequestGenerato
 
     @objc public func storeUpdateEvents(_ updateEvents: [ZMUpdateEvent], ignoreBuffer: Bool) {
         for event in updateEvents {
-            DebugLogger.addStep(step: "decrypt & store", eventID: event.uuid?.uuidString ?? "!")
+            DebugLogger.addStep(step: "Will decrypt & store event: ", eventID: event.uuid?.uuidString ?? "!")
         }
         eventDecoder.decryptAndStoreEvents(updateEvents) { decryptedUpdateEvents in
             self.delegate?.pushNotificationStrategy(self, didFetchEvents: decryptedUpdateEvents)
@@ -120,6 +120,7 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
         var latestEventId: UUID? = nil
 
         for event in events {
+            DebugLogger.addStep(step: "Fetched event: ", eventID: event.uuid?.uuidString ?? "!")
             event.appendDebugInformation("From missing update events transcoder, processUpdateEventsAndReturnLastNotificationIDFromPayload")
             parsedEvents.append(event)
 
@@ -135,12 +136,14 @@ extension PushNotificationStrategy: NotificationStreamSyncDelegate {
         storeUpdateEvents(parsedEvents, ignoreBuffer: true)
         pushNotificationStatus.didFetch(eventIds: eventIds, lastEventId: latestEventId, finished: !hasMoreToFetch)
 
+        DebugLogger.addStep(step: "Will process local notifications ", eventID: "!")
         if !hasMoreToFetch {
             delegate?.pushNotificationStrategyDidFinishFetchingEvents(self)
         }
     }
     
     public func failedFetchingEvents() {
+        DebugLogger.addStep(step: "! Failed fetching events ", eventID: "!")
         pushNotificationStatus.didFailToFetchEvents()
     }
 }

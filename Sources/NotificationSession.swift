@@ -205,7 +205,7 @@ public class NotificationSession {
 
         coreDataStack.syncContext.performGroupedBlock {
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
-                DebugLogger.addStep(step: "!Not authenticated", eventID: "!")
+                DebugLogger.addStep(step: "! App is not authenticated", eventID: "!")
                 Logging.push.safePublic("Not displaying notification because app is not authenticated")
                 completion(false)
                 return
@@ -214,7 +214,7 @@ public class NotificationSession {
             let completionHandler = {
                 completion(true)
             }
-            DebugLogger.addStep(step: "!Received push notification with payload", eventID: "!")
+            DebugLogger.addStep(step: "Received push notification with payload", eventID: "!")
 
             self.fetchEvents(fromPushChannelPayload: payload, completionHandler: completionHandler)
         }
@@ -222,12 +222,12 @@ public class NotificationSession {
     
     func fetchEvents(fromPushChannelPayload payload: [AnyHashable: Any], completionHandler: @escaping () -> Void) {
         guard let nonce = self.messageNonce(fromPushChannelData: payload) else {
-            DebugLogger.addStep(step: "!Push Notification without eventID", eventID: "!")
+            DebugLogger.addStep(step: "! Push Notification without eventID", eventID: "!")
             completionHandler()
             return
         }
         currentPushNotificationUUID = nonce
-        DebugLogger.addStep(step: "fetch events", eventID: nonce.uuidString)
+        DebugLogger.addStep(step: "Will fetch an event by ID", eventID: nonce.uuidString)
         applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: completionHandler)
     }
 
@@ -253,7 +253,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
     func pushNotificationStrategy(_ strategy: PushNotificationStrategy, didFetchEvents events: [ZMUpdateEvent]) {
         for event in events {
-                DebugLogger.addStep(step: "did fetched events", eventID: event.uuid?.uuidString ?? "!")
+            DebugLogger.addStep(step: "Did fetch event: ", eventID: event.uuid?.uuidString ?? "!")
             if shouldHandleCallEvent(event) {
                 // Only store the last call event.
                 callEvent =  event
@@ -357,7 +357,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
     }
 
     private func processLocalNotifications() {
-        DebugLogger.addStep(step: "start to process", eventID: currentPushNotificationUUID?.uuidString ?? "!")
+        DebugLogger.addStep(step: "Process local notifications: ", eventID: currentPushNotificationUUID?.uuidString ?? "!")
         let notification: ZMLocalNotification?
 
         if localNotifications.count > 1 {
@@ -381,13 +381,17 @@ extension NotificationSession {
     private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
         var note: ZMLocalNotification?
 
+        DebugLogger.addStep(step: "Will convert event to the local notification: ", eventID: event.uuid?.uuidString ?? "!")
+
         guard let conversationID = event.conversationUUID else {
+            DebugLogger.addStep(step: "! No conversation ID in the event: ", eventID: event.uuid?.uuidString ?? "!")
             return nil
         }
 
         let conversation = ZMConversation.fetch(with: conversationID, domain: event.conversationDomain, in: context)
 
         if let callEventContent = CallEventContent(from: event) {
+            DebugLogger.addStep(step: "Call event: ", eventID: event.uuid?.uuidString ?? "!")
             let currentTimestamp = Date().addingTimeInterval(context.serverTimeDelta)
 
             /// The caller should not be the same as the user receiving the call event and
@@ -406,6 +410,7 @@ extension NotificationSession {
 
         } else {
             note = ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
+            DebugLogger.addStep(step: "We have local notification: ", eventID: event.uuid?.uuidString ?? "!")
         }
 
         note?.increaseEstimatedUnreadCount(on: conversation)
