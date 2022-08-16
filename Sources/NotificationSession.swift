@@ -368,6 +368,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
         let unreadCount = Int(ZMConversation.unreadConversationCount(in: context))
         DebugLogger.addFinalStep(eventID: currentPushNotificationUUID?.uuidString ?? "Final step without UUID")
+        DebugLogger.addStep(step: "Final step in NE ", eventID: "!")
         delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
         localNotifications.removeAll()
     }
