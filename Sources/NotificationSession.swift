@@ -411,7 +411,7 @@ extension NotificationSession {
 
         } else {
             note = ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
-            DebugLogger.addStep(step: "We have local notification: ", eventID: event.uuid?.uuidString ?? "!")
+            DebugLogger.addStep(step: "We have local notification and is't nill? - \(note == nil): ", eventID: event.uuid?.uuidString ?? "!")
         }
 
         note?.increaseEstimatedUnreadCount(on: conversation)
