@@ -65,7 +65,7 @@ public class NotificationSession {
     private var context: NSManagedObjectContext {
         return coreDataStack.syncContext
     }
-    private var currentPushNotificationUUID: UUID?
+//    private var currentPushNotificationUUID: UUID?
 
     public weak var delegate: NotificationSessionDelegate?
 
@@ -205,7 +205,7 @@ public class NotificationSession {
 
         coreDataStack.syncContext.performGroupedBlock {
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
-                DebugLogger.addStep(step: "! App is not authenticated", eventID: "!")
+                DebugLogger.addStep(step: "NE: App is not authenticated", eventID: "!")
                 Logging.push.safePublic("Not displaying notification because app is not authenticated")
                 completion(false)
                 return
@@ -214,7 +214,7 @@ public class NotificationSession {
             let completionHandler = {
                 completion(true)
             }
-            DebugLogger.addStep(step: "Received push notification with payload", eventID: "!")
+            DebugLogger.addStep(step: "NE: Received push notification with payload ", eventID: "!")
 
             self.fetchEvents(fromPushChannelPayload: payload, completionHandler: completionHandler)
         }
@@ -222,12 +222,12 @@ public class NotificationSession {
     
     func fetchEvents(fromPushChannelPayload payload: [AnyHashable: Any], completionHandler: @escaping () -> Void) {
         guard let nonce = self.messageNonce(fromPushChannelData: payload) else {
-            DebugLogger.addStep(step: "! Push Notification without eventID", eventID: "!")
+            DebugLogger.addStep(step: "NE: Push Notification without eventID", eventID: "!")
             completionHandler()
             return
         }
-        currentPushNotificationUUID = nonce
-        DebugLogger.addStep(step: "Will fetch an event by ID", eventID: nonce.uuidString)
+//        currentPushNotificationUUID = nonce
+        DebugLogger.addStep(step: "NE: Will fetch an event by ID", eventID: nonce.uuidString)
         applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: completionHandler)
     }
 
@@ -253,7 +253,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
     func pushNotificationStrategy(_ strategy: PushNotificationStrategy, didFetchEvents events: [ZMUpdateEvent]) {
         for event in events {
-            DebugLogger.addStep(step: "Did fetch event: ", eventID: event.uuid?.uuidString ?? "!")
+            DebugLogger.addStep(step: "NE: Did fetch event: ", eventID: event.uuid?.uuidString ?? "!")
             if shouldHandleCallEvent(event) {
                 // Only store the last call event.
                 callEvent =  event
@@ -357,7 +357,9 @@ extension NotificationSession: PushNotificationStrategyDelegate {
     }
 
     private func processLocalNotifications() {
-        DebugLogger.addStep(step: "Process local notifications: ", eventID: currentPushNotificationUUID?.uuidString ?? "!")
+//        DebugLogger.addStep(step: "NE: Process local notifications: ", eventID: currentPushNotificationUUID?.uuidString ?? "!")
+        DebugLogger.addStep(step: "NE: Process \(localNotifications.count) local notifications ", eventID: "!")
+
         let notification: ZMLocalNotification?
 
         if localNotifications.count > 1 {
@@ -367,8 +369,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         }
 
         let unreadCount = Int(ZMConversation.unreadConversationCount(in: context))
-        DebugLogger.addFinalStep(eventID: currentPushNotificationUUID?.uuidString ?? "Final step without UUID")
-        DebugLogger.addStep(step: "Final step in NE ", eventID: "!")
+        DebugLogger.addStep(step: "NE: Final step in NE ", eventID: "!")
         delegate?.notificationSessionDidGenerateNotification(notification, unreadConversationCount: unreadCount)
         localNotifications.removeAll()
     }
@@ -382,17 +383,17 @@ extension NotificationSession {
     private func notification(from event: ZMUpdateEvent, in context: NSManagedObjectContext) -> ZMLocalNotification? {
         var note: ZMLocalNotification?
 
-        DebugLogger.addStep(step: "Will convert event to the local notification: ", eventID: event.uuid?.uuidString ?? "!")
+        DebugLogger.addStep(step: "NE: Will convert event to the local notification: ", eventID: event.uuid?.uuidString ?? "!")
 
         guard let conversationID = event.conversationUUID else {
-            DebugLogger.addStep(step: "! No conversation ID in the event: ", eventID: event.uuid?.uuidString ?? "!")
+            DebugLogger.addStep(step: "NE: No conversation ID in the event: ", eventID: event.uuid?.uuidString ?? "!")
             return nil
         }
 
         let conversation = ZMConversation.fetch(with: conversationID, domain: event.conversationDomain, in: context)
 
         if let callEventContent = CallEventContent(from: event) {
-            DebugLogger.addStep(step: "Call event: ", eventID: event.uuid?.uuidString ?? "!")
+            DebugLogger.addStep(step: "NE: Call event: ", eventID: event.uuid?.uuidString ?? "!")
             let currentTimestamp = Date().addingTimeInterval(context.serverTimeDelta)
 
             /// The caller should not be the same as the user receiving the call event and
@@ -411,7 +412,7 @@ extension NotificationSession {
 
         } else {
             note = ZMLocalNotification.init(event: event, conversation: conversation, managedObjectContext: context)
-            DebugLogger.addStep(step: "We have local notification and is't nill? - \(note == nil): ", eventID: event.uuid?.uuidString ?? "!")
+            DebugLogger.addStep(step: "NE: We have local notification and is't nill? - \(note == nil): ", eventID: event.uuid?.uuidString ?? "!")
         }
 
         note?.increaseEstimatedUnreadCount(on: conversation)
