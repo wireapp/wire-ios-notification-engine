@@ -20,7 +20,19 @@
 import Foundation
 import WireRequestStrategy
 
+public enum NotificationSessionError: Error {
+
+    case unknownAccount
+    case accountNotAuthenticated
+    case noEventID
+    case duplicateEvent
+    case unknown
+
+}
+
 public protocol NotificationSessionDelegate: AnyObject {
+
+    func notificationSessionFailedwithError(error: NotificationSessionError)
 
     func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?, unreadConversationCount: Int)
     func reportCallEvent(_ event: ZMUpdateEvent, currentTimestamp: TimeInterval)
@@ -207,6 +219,7 @@ public class NotificationSession {
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
                 DebugLogger.addStep(step: "NE: App is not authenticated", eventID: "!")
                 Logging.push.safePublic("Not displaying notification because app is not authenticated")
+                self.delegate?.notificationSessionFailedwithError(error: .accountNotAuthenticated)
                 completion(false)
                 return
             }
@@ -226,9 +239,20 @@ public class NotificationSession {
             completionHandler()
             return
         }
-//        currentPushNotificationUUID = nonce
         DebugLogger.addStep(step: "NE: Will fetch an event by ID", eventID: nonce.uuidString)
-        applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: completionHandler)
+//        applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce, completionHandler: completionHandler)
+        applicationStatusDirectory.pushNotificationStatus.fetch(eventId: nonce) { [weak self] error in
+            guard let error = error as? PushNotificationStatusError else {
+                completionHandler()
+                return
+            }
+            switch error {
+            case .duplicateEvent:
+                self?.delegate?.notificationSessionFailedwithError(error: .duplicateEvent)
+            default:
+                self?.delegate?.notificationSessionFailedwithError(error: .unknown)
+            }
+        }
     }
 
     private func messageNonce(fromPushChannelData payload: [AnyHashable: Any]) -> UUID? {
