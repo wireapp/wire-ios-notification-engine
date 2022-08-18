@@ -218,7 +218,7 @@ public class NotificationSession {
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
                 DebugLogger.addStep(step: "NE: App is not authenticated", eventID: "!")
                 Logging.push.safePublic("Not displaying notification because app is not authenticated")
-                self.delegate?.notificationSessionFailedwithError(error: .accountNotAuthenticated)
+                self.delegate?.notificationSessionFailedWithError(error: .accountNotAuthenticated)
                 completion(false)
                 return
             }
