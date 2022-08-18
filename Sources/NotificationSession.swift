@@ -32,8 +32,7 @@ public enum NotificationSessionError: Error {
 
 public protocol NotificationSessionDelegate: AnyObject {
 
-    func notificationSessionFailedwithError(error: NotificationSessionError)
-
+    func notificationSessionFailedWithError(error: NotificationSessionError)
     func notificationSessionDidGenerateNotification(_ notification: ZMLocalNotification?, unreadConversationCount: Int)
     func reportCallEvent(_ event: ZMUpdateEvent, currentTimestamp: TimeInterval)
 
@@ -248,9 +247,9 @@ public class NotificationSession {
             }
             switch error {
             case .duplicateEvent:
-                self?.delegate?.notificationSessionFailedwithError(error: .duplicateEvent)
+                self?.delegate?.notificationSessionFailedWithError(error: .duplicateEvent)
             default:
-                self?.delegate?.notificationSessionFailedwithError(error: .unknown)
+                self?.delegate?.notificationSessionFailedWithError(error: .unknown)
             }
         }
     }
