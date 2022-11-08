@@ -19,6 +19,30 @@
 
 import Foundation
 import WireRequestStrategy
+import OSLog
+
+struct WireLogger {
+
+    private var logger: Any?
+    private var infoBlock: ((String) -> Void)?
+
+    init(category: String) {
+        if #available(iOS 14, *) {
+            let logger = Logger(subsystem: "VoIP Push", category: category)
+            infoBlock = { message in
+                logger.info("\(message, privacy: .public)")
+            }
+            self.logger = logger
+        }
+    }
+
+    func info(_ message: String) {
+        infoBlock?(message)
+    }
+
+}
+
+let logger = WireLogger(category: "Notification Engine")
 
 public enum NotificationSessionError: Error {
 
@@ -298,6 +322,8 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             return false
         }
 
+        logger.info("did receive call event: \(callContent)")
+
         // The sender is needed to report who the call is from.
         guard isValidSender(in: event) else {
             return false
@@ -336,18 +362,48 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         let callExistsForConversation = VoIPPushHelper.existsOngoingCallInConversation(
             withID: conversationID
         )
+//
+//        // We can't report an incoming call if it already exists.
+//        if case .incomingCall = callContent.callState, callExistsForConversation {
+//            return false
+//        }
+//
+//        // We can't terminate a call if it doesn't exist.
+//        if case .missedCall = callContent.callState, !callExistsForConversation {
+//            return false
+//        }
+//
+//        if callContent.isRegected, !callExistsForConversation {
+//            return false
+//        }
+//
+//        if callContent.isAnsweredElsewhere, !callExistsForConversation {
+//            return false
+//        }
 
-        // We can't report an incoming call if it already exists.
-        if case .incomingCall = callContent.callState, callExistsForConversation {
+        if callContent.isIncomingCall, !callExistsForConversation {
+//            if let moc = conversation.managedObjectContext,
+//               callContent.callerID == ZMUser.selfUser(in: moc).remoteIdentifier {
+//                logger.info("CallerID: \(callContent.callerID?.description)")
+//                logger.info("SelfUser: \(ZMUser.selfUser(in: moc).remoteIdentifier.description)")
+//                logger.info("should not handle incoming call, self call")
+//                return false
+//            }
+            logger.info("should handle incoming call")
+            return true
+        } else if callContent.isEndCall/*, callExistsForConversation*/ {
+            logger.info("should handle end call")
+            return true
+        } else if callContent.isRegected, callExistsForConversation {
+            logger.info("should handle call reject")
+            return true
+        } else if callContent.isAnsweredElsewhere, callExistsForConversation {
+            logger.info("should handle call answered elsewhere")
+            return true
+        } else {
+            logger.info("should not handle call event")
             return false
         }
-
-        // We can't terminate a call if it doesn't exist.
-        if case .missedCall = callContent.callState, !callExistsForConversation {
-            return false
-        }
-
-        return true
     }
 
     private func isValidSender(in event: ZMUpdateEvent) -> Bool {
