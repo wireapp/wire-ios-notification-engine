@@ -331,8 +331,8 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
         // The conversation is needed to report where the call is taking place.
         guard let conversation = conversation(in: event) else {
-                  return false
-              }
+            return false
+        }
 
         // The call event can be processed if the conversation is not muted
         if conversation.mutedMessageTypesIncludingAvailability != .none {
@@ -362,36 +362,22 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         let callExistsForConversation = VoIPPushHelper.existsOngoingCallInConversation(
             withID: conversationID
         )
-//
-//        // We can't report an incoming call if it already exists.
-//        if case .incomingCall = callContent.callState, callExistsForConversation {
-//            return false
-//        }
-//
-//        // We can't terminate a call if it doesn't exist.
-//        if case .missedCall = callContent.callState, !callExistsForConversation {
-//            return false
-//        }
-//
-//        if callContent.isRegected, !callExistsForConversation {
-//            return false
-//        }
-//
-//        if callContent.isAnsweredElsewhere, !callExistsForConversation {
-//            return false
-//        }
+
+        /// Should not handle a call if the caller is a self user and it's an incoming call or call end.
+        /// The caller can be the same as the self user if it's a rejected call or answered elsewhere.
+        if let selfUserID = selfUserID(in: conversation.managedObjectContext),
+           let callerID = callContent.callerID,
+           callerID == selfUserID {
+            if callContent.isIncomingCall || callContent.isEndCall {
+                logger.info("should not handle call event, self call")
+                return false
+            }
+        }
 
         if callContent.isIncomingCall, !callExistsForConversation {
-//            if let moc = conversation.managedObjectContext,
-//               callContent.callerID == ZMUser.selfUser(in: moc).remoteIdentifier {
-//                logger.info("CallerID: \(callContent.callerID?.description)")
-//                logger.info("SelfUser: \(ZMUser.selfUser(in: moc).remoteIdentifier.description)")
-//                logger.info("should not handle incoming call, self call")
-//                return false
-//            }
             logger.info("should handle incoming call")
             return true
-        } else if callContent.isEndCall/*, callExistsForConversation*/ {
+        } else if callContent.isEndCall {
             logger.info("should handle end call")
             return true
         } else if callContent.isRegected, callExistsForConversation {
@@ -404,6 +390,13 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             logger.info("should not handle call event")
             return false
         }
+    }
+
+    private func selfUserID(in managedObjectContext: NSManagedObjectContext?) -> UUID? {
+        guard let moc = managedObjectContext else {
+            return nil
+        }
+        return ZMUser.selfUser(in: moc).remoteIdentifier
     }
 
     private func isValidSender(in event: ZMUpdateEvent) -> Bool {
