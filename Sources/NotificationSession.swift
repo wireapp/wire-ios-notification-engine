@@ -359,32 +359,26 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             return false
         }
 
-        let callExistsForConversation = VoIPPushHelper.existsOngoingCallInConversation(
-            withID: conversationID
-        )
+        let handle = "\(accountIdentifier.transportString())+\(conversationID.transportString())"
+        let wasCallHandleReported = VoIPPushHelper.knownCallHandles.contains(handle)
 
-        /// Should not handle a call if the caller is a self user and it's an incoming call or call end.
-        /// The caller can be the same as the self user if it's a rejected call or answered elsewhere.
-        if let selfUserID = selfUserID(in: conversation.managedObjectContext),
-           let callerID = callContent.callerID,
-           callerID == selfUserID {
-            if callContent.isIncomingCall || callContent.isEndCall {
-                logger.info("should not handle call event, self call")
-                return false
-            }
+        // Should not handle a call if the caller is a self user and it's an incoming call or call end.
+        // The caller can be the same as the self user if it's a rejected call or answered elsewhere.
+        if
+            let selfUserID = selfUserID(in: conversation.managedObjectContext),
+            let callerID = callContent.callerID,
+            callerID == selfUserID,
+            (callContent.isIncomingCall || callContent.isEndCall)
+        {
+            logger.info("should not handle call event, self call")
+            return false
         }
 
-        if callContent.isIncomingCall, !callExistsForConversation {
-            logger.info("should handle incoming call")
+        if callContent.initiatesRinging, !wasCallHandleReported {
+            logger.info("should initiate ringing")
             return true
-        } else if callContent.isEndCall {
-            logger.info("should handle end call")
-            return true
-        } else if callContent.isRegected, callExistsForConversation {
-            logger.info("should handle call reject")
-            return true
-        } else if callContent.isAnsweredElsewhere, callExistsForConversation {
-            logger.info("should handle call answered elsewhere")
+        } else if callContent.terminatesRinging, wasCallHandleReported {
+            logger.info("should terminate ringing")
             return true
         } else {
             logger.info("should not handle call event")
@@ -488,25 +482,6 @@ extension NotificationSession {
         }
 
         return Int(currentTimestamp.timeIntervalSince(eventTimestamp)) > 30
-    }
-
-}
-
-// MARK: - Helpers
-
-private extension CallEventContent {
-
-    init?(from event: ZMUpdateEvent) {
-        guard
-            event.type == .conversationOtrMessageAdd,
-            let message = GenericMessage(from: event),
-            message.hasCalling,
-            let payload = message.calling.content.data(using: .utf8, allowLossyConversion: false)
-        else {
-            return nil
-        }
-
-        self.init(from: payload)
     }
 
 }
