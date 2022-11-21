@@ -65,7 +65,8 @@ public protocol NotificationSessionDelegate: AnyObject {
 
     func reportCallEvent(
         _ event: ZMUpdateEvent,
-        currentTimestamp: TimeInterval
+        currentTimestamp: TimeInterval,
+        callerName: String
     )
 
 }
@@ -410,6 +411,25 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         return conversation
     }
 
+    private func caller(in callEvent: ZMUpdateEvent) -> ZMUser? {
+        guard let callContent = CallEventContent(from: callEvent),
+              let callerID = callContent.callerID,
+              let user = ZMUser.fetch(with: callerID, in: context) else {
+                  return nil
+              }
+
+        return user
+    }
+
+    private func callerName(in callEvent: ZMUpdateEvent) -> String {
+        guard let conversation = conversation(in: callEvent),
+              let user = caller(in: callEvent) else {
+                  return "someone"
+              }
+
+        return conversation.localizedCallerName(with: user)
+    }
+
     func pushNotificationStrategyDidFinishFetchingEvents(_ strategy: PushNotificationStrategy) {
         processCallEvent()
         processLocalNotifications()
@@ -417,7 +437,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
     private func processCallEvent() {
         if let callEvent = callEvent {
-            delegate?.reportCallEvent(callEvent, currentTimestamp: context.serverTimeDelta)
+            delegate?.reportCallEvent(callEvent, currentTimestamp: context.serverTimeDelta, callerName: callerName(in: callEvent))
             self.callEvent = nil
         }
     }
