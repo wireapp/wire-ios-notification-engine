@@ -19,6 +19,30 @@
 
 import Foundation
 import WireRequestStrategy
+import OSLog
+
+struct WireLogger {
+
+    private var logger: Any?
+    private var infoBlock: ((String) -> Void)?
+
+    init(category: String) {
+        if #available(iOS 14, *) {
+            let logger = Logger(subsystem: "VoIP Push", category: category)
+            infoBlock = { message in
+                logger.info("\(message, privacy: .public)")
+            }
+            self.logger = logger
+        }
+    }
+
+    func info(_ message: String) {
+        infoBlock?(message)
+    }
+
+}
+
+let logger = WireLogger(category: "Notification Engine")
 
 public enum NotificationSessionError: Error {
 
@@ -41,7 +65,8 @@ public protocol NotificationSessionDelegate: AnyObject {
 
     func reportCallEvent(
         _ event: ZMUpdateEvent,
-        currentTimestamp: TimeInterval
+        currentTimestamp: TimeInterval,
+        callerName: String
     )
 
 }
@@ -298,6 +323,8 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             return false
         }
 
+        logger.info("did receive call event: \(callContent)")
+
         // The sender is needed to report who the call is from.
         guard isValidSender(in: event) else {
             return false
@@ -305,8 +332,8 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
         // The conversation is needed to report where the call is taking place.
         guard let conversation = conversation(in: event) else {
-                  return false
-              }
+            return false
+        }
 
         // The call event can be processed if the conversation is not muted
         if conversation.mutedMessageTypesIncludingAvailability != .none {
@@ -333,21 +360,38 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             return false
         }
 
-        let callExistsForConversation = VoIPPushHelper.existsOngoingCallInConversation(
-            withID: conversationID
-        )
+        let handle = "\(accountIdentifier.transportString())+\(conversationID.transportString())"
+        let wasCallHandleReported = VoIPPushHelper.knownCallHandles.contains(handle)
 
-        // We can't report an incoming call if it already exists.
-        if case .incomingCall = callContent.callState, callExistsForConversation {
+        // Should not handle a call if the caller is a self user and it's an incoming call or call end.
+        // The caller can be the same as the self user if it's a rejected call or answered elsewhere.
+        if
+            let selfUserID = selfUserID(in: conversation.managedObjectContext),
+            let callerID = callContent.callerID,
+            callerID == selfUserID,
+            (callContent.isIncomingCall || callContent.isEndCall)
+        {
+            logger.info("should not handle call event, self call")
             return false
         }
 
-        // We can't terminate a call if it doesn't exist.
-        if case .missedCall = callContent.callState, !callExistsForConversation {
+        if callContent.initiatesRinging, !wasCallHandleReported {
+            logger.info("should initiate ringing")
+            return true
+        } else if callContent.terminatesRinging, wasCallHandleReported {
+            logger.info("should terminate ringing")
+            return true
+        } else {
+            logger.info("should not handle call event")
             return false
         }
+    }
 
-        return true
+    private func selfUserID(in managedObjectContext: NSManagedObjectContext?) -> UUID? {
+        guard let moc = managedObjectContext else {
+            return nil
+        }
+        return ZMUser.selfUser(in: moc).remoteIdentifier
     }
 
     private func isValidSender(in event: ZMUpdateEvent) -> Bool {
@@ -367,6 +411,25 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         return conversation
     }
 
+    private func caller(in callEvent: ZMUpdateEvent) -> ZMUser? {
+        guard let callContent = CallEventContent(from: callEvent),
+              let callerID = callContent.callerID,
+              let user = ZMUser.fetch(with: callerID, in: context) else {
+                  return nil
+              }
+
+        return user
+    }
+
+    private func callerName(in callEvent: ZMUpdateEvent) -> String {
+        guard let conversation = conversation(in: callEvent),
+              let user = caller(in: callEvent) else {
+                  return "someone"
+              }
+
+        return conversation.localizedCallerName(with: user)
+    }
+
     func pushNotificationStrategyDidFinishFetchingEvents(_ strategy: PushNotificationStrategy) {
         processCallEvent()
         processLocalNotifications()
@@ -374,7 +437,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
     private func processCallEvent() {
         if let callEvent = callEvent {
-            delegate?.reportCallEvent(callEvent, currentTimestamp: context.serverTimeDelta)
+            delegate?.reportCallEvent(callEvent, currentTimestamp: context.serverTimeDelta, callerName: callerName(in: callEvent))
             self.callEvent = nil
         }
     }
@@ -439,25 +502,6 @@ extension NotificationSession {
         }
 
         return Int(currentTimestamp.timeIntervalSince(eventTimestamp)) > 30
-    }
-
-}
-
-// MARK: - Helpers
-
-private extension CallEventContent {
-
-    init?(from event: ZMUpdateEvent) {
-        guard
-            event.type == .conversationOtrMessageAdd,
-            let message = GenericMessage(from: event),
-            message.hasCalling,
-            let payload = message.calling.content.data(using: .utf8, allowLossyConversion: false)
-        else {
-            return nil
-        }
-
-        self.init(from: payload)
     }
 
 }
