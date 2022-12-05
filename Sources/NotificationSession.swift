@@ -325,38 +325,52 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
         logger.info("did receive call event: \(callContent)")
 
-        // The sender is needed to report who the call is from.
-        guard isValidSender(in: event) else {
+        guard let callerID = event.senderUUID else {
+            logger.info("should not handle call event: senderUUID missing from event")
             return false
         }
 
-        // The conversation is needed to report where the call is taking place.
-        guard let conversation = conversation(in: event) else {
+        guard ZMUser.fetch(with: callerID, domain: event.senderDomain, in: context) != nil else {
+            logger.info("should not handle call event: caller not in db")
             return false
         }
 
-        // The call event can be processed if the conversation is not muted
+        guard let conversationID = event.conversationUUID else {
+            logger.info("should not handle call event: conversationUUID missing from event")
+            return false
+        }
+
+        guard let conversation = ZMConversation.fetch(
+            with: conversationID,
+            domain: event.conversationDomain,
+            in: context
+        ) else {
+            logger.info("should not handle call event: conversation not in db")
+            return false
+        }
+
+        guard !conversation.needsToBeUpdatedFromBackend else {
+            logger.info("should not handle call event: conversation not synced")
+            return false
+        }
+
         if conversation.mutedMessageTypesIncludingAvailability != .none {
+            logger.info("should not handle call event: conversation is muted or user is not available")
             return false
         }
 
-        // AVS is ready to process call events.
         guard VoIPPushHelper.isAVSReady else {
+            logger.info("should not handle call event: AVS is not ready")
             return false
         }
 
-        // CallKit may not be available due to lack of permissions or because it
-        // is disabled by the user.
         guard VoIPPushHelper.isCallKitAvailable else {
+            logger.info("should not handle call event: CallKit is not available")
             return false
         }
 
-        // The user session is needed to process the call event.
         guard VoIPPushHelper.isUserSessionLoaded(accountID: accountIdentifier) else {
-            return false
-        }
-
-        guard let conversationID = conversation.remoteIdentifier else {
+            logger.info("should not handle call event: user session is not loaded")
             return false
         }
 
@@ -371,7 +385,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             callerID == selfUserID,
             (callContent.isIncomingCall || callContent.isEndCall)
         {
-            logger.info("should not handle call event, self call")
+            logger.info("should not handle call event: self call")
             return false
         }
 
@@ -382,7 +396,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             logger.info("should terminate ringing")
             return true
         } else {
-            logger.info("should not handle call event")
+            logger.info("should not handle call event: nothing to report")
             return false
         }
     }
@@ -392,11 +406,6 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             return nil
         }
         return ZMUser.selfUser(in: moc).remoteIdentifier
-    }
-
-    private func isValidSender(in event: ZMUpdateEvent) -> Bool {
-        guard let id = event.senderUUID else { return false }
-        return ZMUser.fetch(with: id, domain: event.senderDomain, in: context) != nil
     }
 
     private func conversation(in event: ZMUpdateEvent) -> ZMConversation? {
