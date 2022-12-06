@@ -64,9 +64,8 @@ public protocol NotificationSessionDelegate: AnyObject {
     )
 
     func reportCallEvent(
-        _ event: ZMUpdateEvent,
-        currentTimestamp: TimeInterval,
-        callerName: String
+        _ payload: CallEventPayload,
+        currentTimestamp: TimeInterval
     )
 
 }
@@ -103,7 +102,7 @@ public class NotificationSession {
 
     public let accountIdentifier: UUID
 
-    private var callEvent: ZMUpdateEvent?
+    private var callEvent: CallEventPayload?
     private var localNotifications = [ZMLocalNotification]()
 
     private var context: NSManagedObjectContext {
@@ -302,42 +301,46 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
     func pushNotificationStrategy(_ strategy: PushNotificationStrategy, didFetchEvents events: [ZMUpdateEvent]) {
         for event in events {
-            if shouldHandleCallEvent(event) {
+            if let callEventPayload = callEventPayloadForCallKit(from: event) {
                 // Only store the last call event.
-                callEvent =  event
+                callEvent = callEventPayload
             } else if let notification = notification(from: event, in: context) {
                 localNotifications.append(notification)
             }
         }
     }
 
-    private func shouldHandleCallEvent(_ event: ZMUpdateEvent) -> Bool {
+    private func callEventPayloadForCallKit(from event: ZMUpdateEvent) -> CallEventPayload? {
         // The API to report VoIP pushes from the notification service extension
         // is only available from iOS 14.5.
         guard #available(iOSApplicationExtension 14.5, *) else {
-            return false
+            return nil
         }
 
         // Ensure this actually is a call event.
         guard let callContent = CallEventContent(from: event) else {
-            return false
+            return nil
         }
 
         logger.info("did receive call event: \(callContent)")
 
         guard let callerID = event.senderUUID else {
             logger.info("should not handle call event: senderUUID missing from event")
-            return false
+            return nil
         }
 
-        guard ZMUser.fetch(with: callerID, domain: event.senderDomain, in: context) != nil else {
+        guard let caller = ZMUser.fetch(
+            with: callerID,
+            domain: event.senderDomain,
+            in: context
+        ) else {
             logger.info("should not handle call event: caller not in db")
-            return false
+            return nil
         }
 
         guard let conversationID = event.conversationUUID else {
             logger.info("should not handle call event: conversationUUID missing from event")
-            return false
+            return nil
         }
 
         guard let conversation = ZMConversation.fetch(
@@ -346,32 +349,32 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             in: context
         ) else {
             logger.info("should not handle call event: conversation not in db")
-            return false
+            return nil
         }
 
         guard !conversation.needsToBeUpdatedFromBackend else {
             logger.info("should not handle call event: conversation not synced")
-            return false
+            return nil
         }
 
         if conversation.mutedMessageTypesIncludingAvailability != .none {
             logger.info("should not handle call event: conversation is muted or user is not available")
-            return false
+            return nil
         }
 
         guard VoIPPushHelper.isAVSReady else {
             logger.info("should not handle call event: AVS is not ready")
-            return false
+            return nil
         }
 
         guard VoIPPushHelper.isCallKitAvailable else {
             logger.info("should not handle call event: CallKit is not available")
-            return false
+            return nil
         }
 
         guard VoIPPushHelper.isUserSessionLoaded(accountID: accountIdentifier) else {
             logger.info("should not handle call event: user session is not loaded")
-            return false
+            return nil
         }
 
         let handle = "\(accountIdentifier.transportString())+\(conversationID.transportString())"
@@ -380,63 +383,37 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         // Should not handle a call if the caller is a self user and it's an incoming call or call end.
         // The caller can be the same as the self user if it's a rejected call or answered elsewhere.
         if
-            let selfUserID = selfUserID(in: conversation.managedObjectContext),
+            let selfUserID = ZMUser.selfUser(in: context).remoteIdentifier,
             let callerID = callContent.callerID,
             callerID == selfUserID,
             (callContent.isIncomingCall || callContent.isEndCall)
         {
             logger.info("should not handle call event: self call")
-            return false
+            return nil
         }
 
         if callContent.initiatesRinging, !wasCallHandleReported {
             logger.info("should initiate ringing")
-            return true
+            return CallEventPayload(
+                accountID: accountIdentifier.uuidString,
+                conversationID: conversationID.uuidString,
+                shouldRing: true,
+                callerName: conversation.localizedCallerName(with: caller),
+                hasVideo: callContent.isVideo
+            )
         } else if callContent.terminatesRinging, wasCallHandleReported {
             logger.info("should terminate ringing")
-            return true
+            return CallEventPayload(
+                accountID: accountIdentifier.uuidString,
+                conversationID: conversationID.uuidString,
+                shouldRing: false,
+                callerName: conversation.localizedCallerName(with: caller),
+                hasVideo: callContent.isVideo
+            )
         } else {
             logger.info("should not handle call event: nothing to report")
-            return false
-        }
-    }
-
-    private func selfUserID(in managedObjectContext: NSManagedObjectContext?) -> UUID? {
-        guard let moc = managedObjectContext else {
             return nil
         }
-        return ZMUser.selfUser(in: moc).remoteIdentifier
-    }
-
-    private func conversation(in event: ZMUpdateEvent) -> ZMConversation? {
-        guard
-            let id = event.conversationUUID,
-            let conversation = ZMConversation.fetch(with: id, domain: event.conversationDomain, in: context),
-            !conversation.needsToBeUpdatedFromBackend
-        else {
-            return nil
-        }
-
-        return conversation
-    }
-
-    private func caller(in callEvent: ZMUpdateEvent) -> ZMUser? {
-        guard let callContent = CallEventContent(from: callEvent),
-              let callerID = callContent.callerID,
-              let user = ZMUser.fetch(with: callerID, in: context) else {
-                  return nil
-              }
-
-        return user
-    }
-
-    private func callerName(in callEvent: ZMUpdateEvent) -> String {
-        guard let conversation = conversation(in: callEvent),
-              let user = caller(in: callEvent) else {
-                  return "someone"
-              }
-
-        return conversation.localizedCallerName(with: user)
     }
 
     func pushNotificationStrategyDidFinishFetchingEvents(_ strategy: PushNotificationStrategy) {
@@ -446,7 +423,11 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
     private func processCallEvent() {
         if let callEvent = callEvent {
-            delegate?.reportCallEvent(callEvent, currentTimestamp: context.serverTimeDelta, callerName: callerName(in: callEvent))
+            delegate?.reportCallEvent(
+                callEvent,
+                currentTimestamp: context.serverTimeDelta
+            )
+
             self.callEvent = nil
         }
     }
@@ -512,5 +493,15 @@ extension NotificationSession {
 
         return Int(currentTimestamp.timeIntervalSince(eventTimestamp)) > 30
     }
+
+}
+
+public struct CallEventPayload {
+
+    public let accountID: String
+    public let conversationID: String
+    public let shouldRing: Bool
+    public let callerName: String
+    public let hasVideo: Bool
 
 }
