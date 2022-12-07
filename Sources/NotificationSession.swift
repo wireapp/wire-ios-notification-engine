@@ -504,4 +504,19 @@ public struct CallEventPayload {
     public let callerName: String
     public let hasVideo: Bool
 
+    public init(
+        accountID: String,
+        conversationID: String,
+        shouldRing: Bool,
+        callerName: String,
+        hasVideo: Bool
+    ) {
+        self.accountID = accountID
+        self.conversationID = conversationID
+        self.shouldRing = shouldRing
+        self.callerName = callerName
+        self.hasVideo = hasVideo
+    }
+
 }
+
