@@ -26,8 +26,9 @@ struct WireLogger {
     private var logger: Any?
     private var infoBlock: ((String) -> Void)?
 
-    init(category: String, isDeveloperModeEnabled: Bool = false) {
-        if #available(iOS 14, *), isDeveloperModeEnabled {
+    init(category: String) {
+        // Disabled for now, re-enable when you want to debug.
+        if false, #available(iOS 14, *) {
             let logger = Logger(subsystem: "VoIP Push", category: category)
             infoBlock = { message in
                 logger.info("\(message, privacy: .public)")
