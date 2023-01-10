@@ -50,7 +50,6 @@ public protocol NotificationSessionDelegate: AnyObject {
         currentTimestamp: TimeInterval
     )
 
-    func logEventWithDataDog(message: String)
 }
 
 /// A syncing layer for the notification processing
