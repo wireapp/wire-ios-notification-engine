@@ -69,6 +69,7 @@ public protocol NotificationSessionDelegate: AnyObject {
         currentTimestamp: TimeInterval
     )
 
+    func logEventWithDataDog(message: String)
 }
 
 /// A syncing layer for the notification processing
@@ -249,6 +250,7 @@ public class NotificationSession {
         coreDataStack.syncContext.performGroupedBlock {
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
                 Logging.push.safePublic("Not displaying notification because app is not authenticated")
+                self.delegate?.logEventWithDataDog(message: "Not displaying notification because app is not authenticated")
                 self.delegate?.notificationSessionDidFailWithError(error: .accountNotAuthenticated)
                 return
             }
@@ -325,8 +327,10 @@ extension NotificationSession: PushNotificationStrategyDelegate {
 
         logger.info("did receive call event: \(callContent)")
 
+        self.delegate?.logEventWithDataDog(message: "did receive call event: \(callContent)")
         guard let callerID = event.senderUUID else {
             logger.info("should not handle call event: senderUUID missing from event")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: senderUUID missing from event")
             return nil
         }
 
@@ -336,11 +340,13 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             in: context
         ) else {
             logger.info("should not handle call event: caller not in db")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: caller not in db")
             return nil
         }
 
         guard let conversationID = event.conversationUUID else {
             logger.info("should not handle call event: conversationUUID missing from event")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: conversationUUID missing from event")
             return nil
         }
 
@@ -350,31 +356,37 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             in: context
         ) else {
             logger.info("should not handle call event: conversation not in db")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: conversation not in db")
             return nil
         }
 
         guard !conversation.needsToBeUpdatedFromBackend else {
             logger.info("should not handle call event: conversation not synced")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: conversation not synced")
             return nil
         }
 
         if conversation.mutedMessageTypesIncludingAvailability != .none {
             logger.info("should not handle call event: conversation is muted or user is not available")
+            self.delegate?.logEventWithDataDog(message:"should not handle call event: conversation is muted or user is not available")
             return nil
         }
 
         guard VoIPPushHelper.isAVSReady else {
             logger.info("should not handle call event: AVS is not ready")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: AVS is not ready")
             return nil
         }
 
         guard VoIPPushHelper.isCallKitAvailable else {
             logger.info("should not handle call event: CallKit is not available")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: CallKit is not available")
             return nil
         }
 
         guard VoIPPushHelper.isUserSessionLoaded(accountID: accountIdentifier) else {
             logger.info("should not handle call event: user session is not loaded")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: user session is not loaded")
             return nil
         }
 
@@ -390,11 +402,13 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             (callContent.isIncomingCall || callContent.isEndCall)
         {
             logger.info("should not handle call event: self call")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: self call")
             return nil
         }
 
         if callContent.initiatesRinging, !wasCallHandleReported {
             logger.info("should initiate ringing")
+            self.delegate?.logEventWithDataDog(message: "should initiate ringing")
             return CallEventPayload(
                 accountID: accountIdentifier.uuidString,
                 conversationID: conversationID.uuidString,
@@ -404,6 +418,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             )
         } else if callContent.terminatesRinging, wasCallHandleReported {
             logger.info("should terminate ringing")
+            self.delegate?.logEventWithDataDog(message: "should terminate ringing")
             return CallEventPayload(
                 accountID: accountIdentifier.uuidString,
                 conversationID: conversationID.uuidString,
@@ -413,6 +428,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             )
         } else {
             logger.info("should not handle call event: nothing to report")
+            self.delegate?.logEventWithDataDog(message: "should not handle call event: nothing to report")
             return nil
         }
     }
