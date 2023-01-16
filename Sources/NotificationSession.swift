@@ -96,7 +96,7 @@ public class NotificationSession {
 
     public weak var delegate: NotificationSessionDelegate?
 
-    public var wireLogger: WireLogger?
+    public var logger: WireLogger!
     // MARK: - Life cycle
         
     /// Initializes a new `SessionDirectory` to be used in an extension environment
@@ -229,12 +229,11 @@ public class NotificationSession {
     // MARK: - Methods
     
     public func processPushNotification(with payload: [AnyHashable: Any]) {
-        Logging.network.debug("Received push notification with payload: \(payload)")
+        logger.info("Received push notification with payload: \(payload)")
 
         coreDataStack.syncContext.performGroupedBlock {
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
-                Logging.push.safePublic("Not displaying notification because app is not authenticated")
-                self.wireLogger?.info("Not displaying notification because app is not authenticated")
+                self.logger.info("Not displaying notification because app is not authenticated")
                 self.delegate?.notificationSessionDidFailWithError(error: .accountNotAuthenticated)
                 return
             }
@@ -309,9 +308,9 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             return nil
         }
 
-        self.wireLogger?.info("did receive call event: \(callContent)")
+        logger.info("did receive call event: \(callContent)")
         guard let callerID = event.senderUUID else {
-            self.wireLogger?.info("should not handle call event: senderUUID missing from event")
+            logger.info("should not handle call event: senderUUID missing from event")
             return nil
         }
 
@@ -320,12 +319,12 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             domain: event.senderDomain,
             in: context
         ) else {
-            self.wireLogger?.info("should not handle call event: caller not in db")
+            logger.info("should not handle call event: caller not in db")
             return nil
         }
 
         guard let conversationID = event.conversationUUID else {
-            self.wireLogger?.info("should not handle call event: conversationUUID missing from event")
+            logger.info("should not handle call event: conversationUUID missing from event")
             return nil
         }
 
@@ -334,32 +333,32 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             domain: event.conversationDomain,
             in: context
         ) else {
-            self.wireLogger?.info("should not handle call event: conversation not in db")
+            logger.info("should not handle call event: conversation not in db")
             return nil
         }
 
         guard !conversation.needsToBeUpdatedFromBackend else {
-            self.wireLogger?.info("should not handle call event: conversation not synced")
+            logger.info("should not handle call event: conversation not synced")
             return nil
         }
 
         if conversation.mutedMessageTypesIncludingAvailability != .none {
-            self.wireLogger?.info("should not handle call event: conversation is muted or user is not available")
+            logger.info("should not handle call event: conversation is muted or user is not available")
             return nil
         }
 
         guard VoIPPushHelper.isAVSReady else {
-            self.wireLogger?.info("should not handle call event: AVS is not ready")
+            logger.info("should not handle call event: AVS is not ready")
             return nil
         }
 
         guard VoIPPushHelper.isCallKitAvailable else {
-            self.wireLogger?.info("should not handle call event: CallKit is not available")
+            logger.info("should not handle call event: CallKit is not available")
             return nil
         }
 
         guard VoIPPushHelper.isUserSessionLoaded(accountID: accountIdentifier) else {
-            self.wireLogger?.info("should not handle call event: user session is not loaded")
+            logger.info("should not handle call event: user session is not loaded")
             return nil
         }
 
@@ -374,12 +373,12 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             callerID == selfUserID,
             (callContent.isIncomingCall || callContent.isEndCall)
         {
-            self.wireLogger?.info("should not handle call event: self call")
+            logger.info("should not handle call event: self call")
             return nil
         }
 
         if callContent.initiatesRinging, !wasCallHandleReported {
-            self.wireLogger?.info("should initiate ringing")
+            logger.info("should initiate ringing")
             return CallEventPayload(
                 accountID: accountIdentifier.uuidString,
                 conversationID: conversationID.uuidString,
@@ -388,7 +387,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
                 hasVideo: callContent.isVideo
             )
         } else if callContent.terminatesRinging, wasCallHandleReported {
-            self.wireLogger?.info("should terminate ringing")
+            logger.info("should terminate ringing")
             return CallEventPayload(
                 accountID: accountIdentifier.uuidString,
                 conversationID: conversationID.uuidString,
@@ -397,7 +396,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
                 hasVideo: callContent.isVideo
             )
         } else {
-            self.wireLogger?.info("should not handle call event: nothing to report")
+            logger.info("should not handle call event: nothing to report")
             return nil
         }
     }
