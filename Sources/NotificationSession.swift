@@ -20,15 +20,6 @@
 import Foundation
 import WireRequestStrategy
 
-public protocol WireLogger {
-
-    func info(_ message: String)
-    func debug(_ message: String)
-    func warn(_ message: String)
-    func error(_ message: String, _ error: Error)
-    
-}
-
 public enum NotificationSessionError: Error {
 
     case accountNotAuthenticated
@@ -96,7 +87,7 @@ public class NotificationSession {
 
     public weak var delegate: NotificationSessionDelegate?
 
-    public var logger: WireLogger?
+    public var logger: LoggerProtocol?
     // MARK: - Life cycle
         
     /// Initializes a new `SessionDirectory` to be used in an extension environment
@@ -233,11 +224,10 @@ public class NotificationSession {
     // MARK: - Methods
     
     public func processPushNotification(with payload: [AnyHashable: Any]) {
-        logger?.info("Received push notification with payload: \(payload)")
-
+        logger?.info("Received push notification with payload: \(payload)", attributes: nil)
         coreDataStack.syncContext.performGroupedBlock {
             if self.applicationStatusDirectory.authenticationStatus.state == .unauthenticated {
-                self.logger?.info("Not displaying notification because app is not authenticated")
+                self.logger?.info("Not displaying notification because app is not authenticated", attributes: nil)
                 self.delegate?.notificationSessionDidFailWithError(error: .accountNotAuthenticated)
                 return
             }
@@ -312,9 +302,9 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             return nil
         }
 
-        logger?.info("did receive call event: \(callContent)")
+        logger?.info("did receive call event: \(callContent)", attributes: nil)
         guard let callerID = event.senderUUID else {
-            logger?.info("should not handle call event: senderUUID missing from event")
+            logger?.info("should not handle call event: senderUUID missing from event", attributes: nil)
             return nil
         }
 
@@ -323,12 +313,12 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             domain: event.senderDomain,
             in: context
         ) else {
-            logger?.info("should not handle call event: caller not in db")
+            logger?.info("should not handle call event: caller not in db", attributes: nil)
             return nil
         }
 
         guard let conversationID = event.conversationUUID else {
-            logger?.info("should not handle call event: conversationUUID missing from event")
+            logger?.info("should not handle call event: conversationUUID missing from event", attributes: nil)
             return nil
         }
 
@@ -337,32 +327,32 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             domain: event.conversationDomain,
             in: context
         ) else {
-            logger?.info("should not handle call event: conversation not in db")
+            logger?.info("should not handle call event: conversation not in db", attributes: nil)
             return nil
         }
 
         guard !conversation.needsToBeUpdatedFromBackend else {
-            logger?.info("should not handle call event: conversation not synced")
+            logger?.info("should not handle call event: conversation not synced", attributes: nil)
             return nil
         }
 
         if conversation.mutedMessageTypesIncludingAvailability != .none {
-            logger?.info("should not handle call event: conversation is muted or user is not available")
+            logger?.info("should not handle call event: conversation is muted or user is not available", attributes: nil)
             return nil
         }
 
         guard VoIPPushHelper.isAVSReady else {
-            logger?.info("should not handle call event: AVS is not ready")
+            logger?.info("should not handle call event: AVS is not ready", attributes: nil)
             return nil
         }
 
         guard VoIPPushHelper.isCallKitAvailable else {
-            logger?.info("should not handle call event: CallKit is not available")
+            logger?.info("should not handle call event: CallKit is not available", attributes: nil)
             return nil
         }
 
         guard VoIPPushHelper.isUserSessionLoaded(accountID: accountIdentifier) else {
-            logger?.info("should not handle call event: user session is not loaded")
+            logger?.info("should not handle call event: user session is not loaded", attributes: nil)
             return nil
         }
 
@@ -377,12 +367,12 @@ extension NotificationSession: PushNotificationStrategyDelegate {
             callerID == selfUserID,
             (callContent.isIncomingCall || callContent.isEndCall)
         {
-            logger?.info("should not handle call event: self call")
+            logger?.info("should not handle call event: self call", attributes: nil)
             return nil
         }
 
         if callContent.initiatesRinging, !wasCallHandleReported {
-            logger?.info("should initiate ringing")
+            logger?.info("should initiate ringing", attributes: nil)
             return CallEventPayload(
                 accountID: accountIdentifier.uuidString,
                 conversationID: conversationID.uuidString,
@@ -391,7 +381,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
                 hasVideo: callContent.isVideo
             )
         } else if callContent.terminatesRinging, wasCallHandleReported {
-            logger?.info("should terminate ringing")
+            logger?.info("should terminate ringing", attributes: nil)
             return CallEventPayload(
                 accountID: accountIdentifier.uuidString,
                 conversationID: conversationID.uuidString,
@@ -400,7 +390,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
                 hasVideo: callContent.isVideo
             )
         } else {
-            logger?.info("should not handle call event: nothing to report")
+            logger?.info("should not handle call event: nothing to report", attributes: nil)
             return nil
         }
     }
