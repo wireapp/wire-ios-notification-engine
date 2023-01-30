@@ -304,6 +304,7 @@ extension NotificationSession: PushNotificationStrategyDelegate {
         }
 
         logger.info("did receive call event: \(callContent)")
+        
         guard let callerID = event.senderUUID else {
             logger.info("should not handle call event: senderUUID missing from event")
             return nil
